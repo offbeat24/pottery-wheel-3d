@@ -61,11 +61,11 @@ try {
 if (lock.schemaVersion !== 1 || lock.package?.name !== 'bass-platform') {
   fail('harness-lock', '지원하지 않는 harness lock 형식입니다.')
 }
-if (lock.package.version !== '0.2.1' || lock.source.commit !== '043a31e') {
+if (lock.package.version !== '0.2.1' || lock.source.commit !== '90dd27d') {
   fail('harness-lock', '검토된 BASS package version 또는 source commit과 일치하지 않습니다.')
 }
-if (JSON.stringify(lock.profiles) !== JSON.stringify(['common', 'web'])) {
-  fail('harness-lock', '활성 profile은 common,web이어야 합니다.')
+if (JSON.stringify(lock.profiles) !== JSON.stringify(['common', 'web', 'server'])) {
+  fail('harness-lock', '활성 profile은 common,web,server이어야 합니다.')
 }
 
 let tarball
