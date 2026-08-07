@@ -27,8 +27,8 @@ const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('앱 컨테이너를 찾을 수 없습니다.')
 
 app.innerHTML = `
-  <main class="game-shell" aria-label="3D 도자기 물레 게임">
-    <div class="scene-host" id="scene-host"></div>
+  <main class="game-shell" aria-label="3D 도자기 물레 게임" data-testid="game-root" data-game-state="intro">
+    <div class="scene-host" id="scene-host" data-testid="game-surface"></div>
     <div class="grain"></div>
     <header class="top-bar">
       <div class="brand"><span class="brand-kicker">A SMALL POTTERY STUDIO</span><h1>고요한 물레</h1></div>
@@ -44,7 +44,7 @@ app.innerHTML = `
     </aside>
     <div class="bottom-dock">
       <section class="mode-panel" id="mode-panel">
-        <div class="mode-copy"><span class="mode-label">CONTROL MODE</span><strong class="mode-name" id="mode-name">시점 조절</strong></div>
+        <div class="mode-copy"><span class="mode-label">CONTROL MODE</span><strong class="mode-name" id="mode-name" data-testid="game-status">시점 조절</strong></div>
         <div class="mode-details">
           <div class="control-hints" id="control-hints"></div>
           <div class="contact-feedback"><span class="contact-dot" id="contact-dot"></span><span id="contact-state">물레가 돌면 손이 커서를 따라갑니다</span></div>
@@ -58,7 +58,7 @@ app.innerHTML = `
       </section>
     </div>
     <div class="game-actions">
-      <button class="restart-button" id="restart-button"><span>↻</span> 다시 시작</button>
+      <button class="restart-button" id="restart-button" data-testid="restart-action"><span>↻</span> 다시 시작</button>
       <button class="finish-button" id="finish-button" disabled>물레를 멈춰주세요</button>
     </div>
     <div class="toast" id="toast" role="status"></div>
@@ -73,7 +73,7 @@ app.innerHTML = `
           <div class="intro-step"><strong>2</strong><b>양손 성형</b><span>좌클릭은 좁히고 우클릭은 넓힙니다.</span></div>
           <div class="intro-step"><strong>3</strong><b>높이 만들기</b><span>양쪽 클릭을 누른 채 위아래로 움직입니다.</span></div>
         </div>
-        <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button">첫 주문 시작</button></div>
+        <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button" data-testid="start-action">첫 주문 시작</button></div>
       </div>
     </section>
 
@@ -100,6 +100,7 @@ function getElement<T extends Element>(selector: string): T {
 }
 
 const sceneHost = getElement<HTMLDivElement>('#scene-host')
+const gameRoot = getElement<HTMLElement>('[data-testid="game-root"]')
 const orderCard = getElement<HTMLElement>('#order-card')
 const rpmValue = getElement<HTMLElement>('#rpm-value')
 const heightValue = getElement<HTMLElement>('#height-value')
@@ -198,6 +199,10 @@ let lastHintMode = ''
 let toastTimer = 0
 let restartTimer = 0
 let restartConfirming = false
+
+function setGameState(state: 'intro' | 'playing' | 'result'): void {
+  gameRoot.dataset.gameState = state
+}
 
 interface CollapseAnimation {
   from: ClayProfile
@@ -642,6 +647,7 @@ function requestRestart(): void {
   }
 
   resetClay()
+  setGameState('playing')
   showToast(`${currentOrder.name} 점토를 처음부터 다시 시작해요`)
 }
 
@@ -673,6 +679,7 @@ function showResult(score: ScoreBreakdown): void {
   `).join('')
   nextButton.textContent = orderIndex === ORDERS.length - 1 ? '첫 주문으로' : '다음 주문'
   resultModal.hidden = false
+  setGameState('result')
 }
 
 function finishWork(): void {
@@ -790,6 +797,7 @@ window.addEventListener('blur', () => {
 startButton.addEventListener('click', () => {
   introModal.hidden = true
   started = true
+  setGameState('playing')
   renderer.domElement.focus()
   showToast('Space를 눌러 물레를 돌려보세요')
 })
@@ -798,6 +806,7 @@ restartButton.addEventListener('click', requestRestart)
 retryButton.addEventListener('click', () => {
   resultModal.hidden = true
   resetClay()
+  setGameState('playing')
   showToast(`${currentOrder.name}, 다시 천천히 빚어봐요`)
 })
 nextButton.addEventListener('click', () => {
@@ -805,6 +814,7 @@ nextButton.addEventListener('click', () => {
   currentOrder = ORDERS[orderIndex]
   resultModal.hidden = true
   resetClay()
+  setGameState('playing')
   replaceGhost(currentOrder)
   updateOrderCard()
   showToast(`${currentOrder.name} 주문이 도착했어요`)
