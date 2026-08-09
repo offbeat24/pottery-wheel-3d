@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PROFILE_SAMPLES } from '../src/game/clay'
-import { parseGallery } from '../src/game/gallery'
+import { parseEarnings, parseGallery } from '../src/game/gallery'
 
 const radii = (value = 0.7): number[] => Array.from({ length: PROFILE_SAMPLES }, () => value)
 
@@ -25,5 +25,18 @@ describe('전시 저장 복원', () => {
       nothing: null,
     })
     expect(Object.keys(parseGallery(saved))).toEqual(['good'])
+  })
+})
+
+describe('수익 복원', () => {
+  it('저장된 수익을 정수로 읽는다', () => {
+    expect(parseEarnings('12400')).toBe(12400)
+    expect(parseEarnings('12400.9')).toBe(12400)
+  })
+
+  it('없거나 음수거나 숫자가 아니면 0으로 시작한다', () => {
+    expect(parseEarnings(null)).toBe(0)
+    expect(parseEarnings('많이')).toBe(0)
+    expect(parseEarnings('-500')).toBe(0)
   })
 })

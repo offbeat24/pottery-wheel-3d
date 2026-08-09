@@ -16,9 +16,9 @@ import {
 } from './game/clay'
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
-import { parseGallery } from './game/gallery'
+import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS } from './game/orders'
-import { scoreClay } from './game/scoring'
+import { scoreClay, sellPrice } from './game/scoring'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
@@ -44,6 +44,7 @@ app.innerHTML = `
       <div class="readout-rule"></div>
       <div class="dimension-row"><span>높이</span><strong id="height-value">18.2 cm</strong></div>
       <div class="dimension-row"><span>최대 폭</span><strong id="width-value">19.7 cm</strong></div>
+      <div class="dimension-row"><span>공방 수익</span><strong id="earnings-value">0원</strong></div>
     </aside>
     <div class="bottom-dock">
       <section class="mode-panel" id="mode-panel">
@@ -111,6 +112,7 @@ const orderCard = getElement<HTMLElement>('#order-card')
 const rpmValue = getElement<HTMLElement>('#rpm-value')
 const heightValue = getElement<HTMLElement>('#height-value')
 const widthValue = getElement<HTMLElement>('#width-value')
+const earningsValue = getElement<HTMLElement>('#earnings-value')
 const speedFill = getElement<HTMLElement>('#speed-fill')
 const modePanel = getElement<HTMLElement>('#mode-panel')
 const modeName = getElement<HTMLElement>('#mode-name')
@@ -196,6 +198,8 @@ let selectedNormalizedHeight = 0.58
 let selectedIndex = Math.round(selectedNormalizedHeight * (PROFILE_SAMPLES - 1))
 let previousPointerX = 0
 let previousPointerY = 0
+let pressStartX = 0
+let pressStartY = 0
 let latestPointerX = 0
 let latestPointerY = 0
 let pointerKnown = false
@@ -246,8 +250,14 @@ let ghostMesh = createGhostMesh(currentOrder)
 workshop.spinningGroup.add(ghostMesh)
 
 const GALLERY_KEY = 'pottery-wheel-3d:gallery'
-const exhibited: (THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null)[] = ORDERS.map(() => null)
-const gallery = parseGallery(readStoredGallery())
+const EARNINGS_KEY = 'pottery-wheel-3d:earnings'
+type ExhibitedPiece = THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
+const exhibited: (ExhibitedPiece | null)[] = ORDERS.map(() => null)
+const gallery = parseGallery(readStored(GALLERY_KEY))
+let earnings = parseEarnings(readStored(EARNINGS_KEY))
+let pendingSaleIndex = -1
+let saleTimer = 0
+updateEarnings()
 ORDERS.forEach((order, index) => {
   const saved = gallery[order.id]
   if (saved) placePiece(index, buildSafeProfile(saved.height, saved.outerRadii))
@@ -743,11 +753,75 @@ function placePiece(slotIndex: number, profile: ClayProfile): void {
   exhibited[slotIndex] = piece
 }
 
-function readStoredGallery(): string | null {
+function readStored(key: string): string | null {
   try {
-    return localStorage.getItem(GALLERY_KEY)
+    return localStorage.getItem(key)
   } catch {
     return null
+  }
+}
+
+// 선반의 작품을 클릭하면 값을 알려주고, 한 번 더 누르면 판다.
+function trySell(clientX: number, clientY: number): void {
+  const pieces = exhibited.filter((piece): piece is ExhibitedPiece => piece !== null)
+  if (pieces.length === 0) return
+
+  const bounds = renderer.domElement.getBoundingClientRect()
+  pointerNdc.set(
+    ((clientX - bounds.left) / bounds.width) * 2 - 1,
+    -((clientY - bounds.top) / bounds.height) * 2 + 1,
+  )
+  raycaster.setFromCamera(pointerNdc, camera)
+  const hit = raycaster.intersectObjects(pieces, false)[0]
+  const slotIndex = hit ? exhibited.indexOf(hit.object as ExhibitedPiece) : -1
+  if (slotIndex < 0) {
+    resetSaleConfirmation()
+    return
+  }
+
+  const order = ORDERS[slotIndex]
+  const saved = gallery[order.id]
+  if (!saved) return
+  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order))
+
+  if (pendingSaleIndex !== slotIndex) {
+    pendingSaleIndex = slotIndex
+    window.clearTimeout(saleTimer)
+    saleTimer = window.setTimeout(resetSaleConfirmation, 2600)
+    showToast(`${order.name} · ${price.toLocaleString('ko-KR')}원 · 한 번 더 누르면 판매`)
+    return
+  }
+
+  resetSaleConfirmation()
+  const piece = exhibited[slotIndex]
+  if (piece) {
+    scene.remove(piece)
+    piece.geometry.dispose()
+    piece.material.dispose()
+  }
+  exhibited[slotIndex] = null
+  delete gallery[order.id]
+  saveGallery()
+  earnings += price
+  saveEarnings()
+  updateEarnings()
+  showToast(`${order.name}을 ${price.toLocaleString('ko-KR')}원에 팔았어요`)
+}
+
+function resetSaleConfirmation(): void {
+  window.clearTimeout(saleTimer)
+  pendingSaleIndex = -1
+}
+
+function updateEarnings(): void {
+  earningsValue.textContent = `${earnings.toLocaleString('ko-KR')}원`
+}
+
+function saveEarnings(): void {
+  try {
+    localStorage.setItem(EARNINGS_KEY, String(earnings))
+  } catch {
+    showToast('수익을 저장하지 못했어요 · 이번 세션에만 남습니다')
   }
 }
 
@@ -766,6 +840,8 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   event.preventDefault()
   previousPointerX = event.clientX
   previousPointerY = event.clientY
+  pressStartX = event.clientX
+  pressStartY = event.clientY
   latestPointerX = event.clientX
   latestPointerY = event.clientY
   pointerKnown = true
@@ -826,6 +902,10 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 })
 
 const releasePointer = (event: PointerEvent): void => {
+  const dragged = Math.hypot(event.clientX - pressStartX, event.clientY - pressStartY) > 5
+  if (event.button === 0 && !dragged && wheelState.mode === 'camera' && resultModal.hidden) {
+    trySell(event.clientX, event.clientY)
+  }
   if (ignoreButtonsUntilRelease && event.buttons === 0) ignoreButtonsUntilRelease = false
   pointerButtons = ignoreButtonsUntilRelease ? 0 : event.buttons
   if (currentAction() !== 'pull') pullAnchorHeight = null

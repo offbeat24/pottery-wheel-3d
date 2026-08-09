@@ -28,6 +28,12 @@ export function parseGallery(raw: string | null): Record<string, SavedPiece> {
   return gallery
 }
 
+export function parseEarnings(raw: string | null): number {
+  const value = Number(raw)
+  if (!Number.isFinite(value) || value < 0) return 0
+  return Math.floor(value)
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }

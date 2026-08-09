@@ -24,6 +24,11 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBr
   }
 }
 
+// 판매가는 점수만으로 정한다. 잘 만들수록 비싸지되 실패작도 값이 0은 아니다.
+export function sellPrice(score: ScoreBreakdown): number {
+  return Math.round((4000 + score.total * 120) / 100) * 100
+}
+
 function sampleOrder(order: OrderDefinition, normalizedHeight: number): number {
   const position = normalizedHeight * (order.outerRadii.length - 1)
   const low = Math.floor(position)
