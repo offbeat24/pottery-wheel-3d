@@ -5,6 +5,8 @@ export interface SavedPiece {
   outerRadii: number[]
   /** 완성 당시의 표면 트임. 저장본에 없으면 0으로 본다. */
   damage: number
+  /** 굽기 완성도(0.5~1). 저장본에 없으면 1로 본다. */
+  firing: number
 }
 
 // localStorage는 사용자가 고칠 수 있으므로 형태가 맞는 항목만 살린다.
@@ -26,7 +28,8 @@ export function parseGallery(raw: string | null): Record<string, SavedPiece> {
     if (!Array.isArray(piece.outerRadii) || piece.outerRadii.length !== PROFILE_SAMPLES) continue
     if (!piece.outerRadii.every((radius) => isFiniteNumber(radius) && radius > 0)) continue
     const damage = isFiniteNumber(piece.damage) ? Math.min(1, Math.max(0, piece.damage)) : 0
-    gallery[id] = { height: piece.height, outerRadii: [...piece.outerRadii], damage }
+    const firing = isFiniteNumber(piece.firing) ? Math.min(1, Math.max(0.5, piece.firing)) : 1
+    gallery[id] = { height: piece.height, outerRadii: [...piece.outerRadii], damage, firing }
   }
   return gallery
 }

@@ -12,10 +12,12 @@ export interface WorkshopObjects {
   applyStudio: (studio: StudioEffect) => void
   /** 전시 선반의 판재와 테를 바꾼다. */
   applyShelf: (shelf: ShelfEffect) => void
-  /** 가마 아궁이의 불빛. 굽는 동안 켠다. */
-  setKilnFiring: (firing: boolean) => void
+  /** 가마 아궁이의 불빛. 굽는 동안 켜고, 시간이 지나면 과열 색으로 바꾼다. */
+  setKilnFiring: (firing: boolean, overdue?: boolean) => void
   /** 가마에서 작품이 나오는 자리. */
   kilnMouth: THREE.Vector3
+  /** 클릭으로 작품을 꺼낼 수 있는 가마 본체. */
+  kilnGroup: THREE.Group
 }
 
 const shadow = (object: THREE.Object3D): void => {
@@ -102,34 +104,71 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
 
   const kiln = new THREE.Group()
   const brick = new THREE.MeshStandardMaterial({ color: 0x8a5b45, roughness: 0.95 })
+  const darkBrick = new THREE.MeshStandardMaterial({ color: 0x5f4034, roughness: 0.86 })
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.98, 1.5, 20), brick)
   body.position.y = 0.75
   kiln.add(body)
   const dome = new THREE.Mesh(new THREE.SphereGeometry(0.86, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), brick)
   dome.position.y = 1.5
   kiln.add(dome)
-  for (const y of [0.42, 1.12]) {
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 24), new THREE.MeshStandardMaterial({ color: 0x5f4034, roughness: 0.8 }))
+  for (const y of [0.95, 1.28]) {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.05, 8, 24), darkBrick)
     band.rotation.x = Math.PI / 2
     band.position.y = y
     kiln.add(band)
   }
-  const emberMaterial = new THREE.MeshBasicMaterial({ color: 0x3a241c })
-  const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.42), emberMaterial)
-  mouth.position.set(0, 0.42, 0.99)
+  const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.5, 12), darkBrick)
+  chimney.position.y = 2.22
+  kiln.add(chimney)
+
+  // 아궁이: 벽돌을 파낸 아치 구멍에 잉걸불과 장작을 넣는다.
+  const emberMaterial = new THREE.MeshBasicMaterial({ color: 0x2a1a14 })
+  const mouth = new THREE.Group()
+  mouth.position.set(0, 0, 0.98)
+  // 불은 벽면에 뚫린 아치 구멍으로 보인다. 벽 안쪽에 두면 몸통에 가려 보이지 않는다.
+  const fireBody = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.34), emberMaterial)
+  fireBody.position.set(0, 0.28, 0.06)
+  mouth.add(fireBody)
+  const fireArch = new THREE.Mesh(new THREE.CircleGeometry(0.31, 18, 0, Math.PI), emberMaterial)
+  fireArch.position.set(0, 0.45, 0.06)
+  mouth.add(fireArch)
+  for (const x of [-0.5, 0.5]) {
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.78, 0.3), darkBrick)
+    jamb.position.set(x, 0.36, -0.02)
+    mouth.add(jamb)
+  }
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.1, 8, 20, Math.PI), darkBrick)
+  arch.position.set(0, 0.45, 0.04)
+  mouth.add(arch)
+  const hearth = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.14, 0.42), darkBrick)
+  hearth.position.set(0, 0.04, 0.02)
+  mouth.add(hearth)
+  const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.56, 8), new THREE.MeshStandardMaterial({ color: 0x4b3226, roughness: 1 }))
+  log.rotation.set(0, 0, Math.PI / 2 + 0.1)
+  log.position.set(0, 0.2, 0.1)
+  mouth.add(log)
   kiln.add(mouth)
-  kiln.position.set(-3.1, 0, -1.5)
-  kiln.rotation.y = 0.5
+
+  kiln.position.set(-3.45, 0, 0.35)
+  kiln.rotation.y = 1.0
   shadow(kiln)
+  // 목표 고스트(depthTest: false)가 가마 불을 덮지 않도록 손과 같은 순서로 올린다.
+  kiln.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.material.transparent = true
+      child.renderOrder = 3
+    }
+  })
   scene.add(kiln)
   const kilnLight = new THREE.PointLight(0xff8a3c, 0, 3.5, 2)
-  kilnLight.position.set(-3.1, 0.7, -0.9)
+  kilnLight.position.set(-3.0, 0.5, 0.9)
   scene.add(kilnLight)
-  const setKilnFiring = (firing: boolean): void => {
-    emberMaterial.color.setHex(firing ? 0xffb352 : 0x3a241c)
-    kilnLight.intensity = firing ? 9 : 0
+  const setKilnFiring = (firing: boolean, overdue = false): void => {
+    emberMaterial.color.setHex(firing ? (overdue ? 0xffe8a8 : 0xff9a3c) : 0x2a1a14)
+    kilnLight.color.setHex(overdue ? 0xffd08a : 0xff8a3c)
+    kilnLight.intensity = firing ? (overdue ? 14 : 9) : 0
   }
-  const kilnMouth = new THREE.Vector3(-3.1, 1.7, -1.5)
+  const kilnMouth = new THREE.Vector3(-3.45, 1.9, 0.35)
 
   const leftHand = createHand('left')
   const rightHand = createHand('right')
@@ -161,6 +200,7 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
     applyShelf: shelves.apply,
     setKilnFiring,
     kilnMouth,
+    kilnGroup: kiln,
   }
 }
 

@@ -20,7 +20,7 @@ import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS, availableOrders } from './game/orders'
-import { scoreClay, sellPrice } from './game/scoring'
+import { FIRING_SECONDS, FIRING_WINDOW, firingQuality, scoreClay, sellPrice } from './game/scoring'
 import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, bestOwned, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
@@ -279,7 +279,6 @@ const GALLERY_KEY = 'pottery-wheel-3d:gallery'
 const EARNINGS_KEY = 'pottery-wheel-3d:earnings'
 const OWNED_KEY = 'pottery-wheel-3d:owned'
 const PIECE_SCALE = 0.26
-const FIRING_SECONDS = 35
 type ExhibitedPiece = THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
 const exhibited: (ExhibitedPiece | null)[] = ORDERS.map(() => null)
 const gallery = parseGallery(readStored(GALLERY_KEY))
@@ -289,7 +288,7 @@ let saleTimer = 0
 const owned = parseOwned(readStored(OWNED_KEY))
 let hoveredPiece: ExhibitedPiece | null = null
 let flight: { piece: ExhibitedPiece; from: THREE.Vector3; to: THREE.Vector3; progress: number } | null = null
-let kiln: { slotIndex: number; profile: ClayProfile; damage: number; remaining: number } | null = null
+let kiln: { slotIndex: number; profile: ClayProfile; damage: number; elapsed: number } | null = null
 let saleHintShown = Object.keys(gallery).length > 0
 let resetConfirming = false
 let resetTimer = 0
@@ -678,7 +677,11 @@ function updateHud(): void {
   contactDot.className = `contact-dot ${wheelState.mode === 'shaping' ? `is-${action}` : ''}`
   pressureFill.style.width = `${Math.round(structuralPressure * 100)}%`
   pressureValue.textContent = collapseAnimation ? '붕괴' : structuralPressure >= 0.72 ? '위험' : structuralPressure > 0.08 ? '주의' : '안정'
-  kilnValue.textContent = kiln ? `굽는 중 ${Math.ceil(kiln.remaining)}초` : '비어 있음'
+  if (!kiln) kilnValue.textContent = '비어 있음'
+  else {
+    const left = Math.round(FIRING_SECONDS - kiln.elapsed)
+    kilnValue.textContent = left > 0 ? `${left}초 남음` : left > -FIRING_WINDOW ? '지금 꺼내세요' : `${-left}초 지남`
+  }
   moistureFill.style.width = `${Math.round(moisture * 100)}%`
   moistureValue.textContent = moistureLabel(moisture)
   modePanel.classList.toggle('is-dry', moisture < 0.3)
@@ -783,31 +786,37 @@ function finishWork(): void {
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 // 완성한 작품은 곧장 선반으로 가지 않고 가마에서 구워진다. 굽는 동안 다음 주문을 빚는다.
 function loadKiln(slotIndex: number): void {
-  if (kiln) finishFiring()
-  kiln = { slotIndex, profile: cloneProfile(clay), damage: surfaceDamage, remaining: FIRING_SECONDS }
+  if (kiln) unloadKiln()
+  kiln = { slotIndex, profile: cloneProfile(clay), damage: surfaceDamage, elapsed: 0 }
   workshop.setKilnFiring(true)
-  showToast(`${ORDERS[slotIndex].name}을(를) 가마에 넣었어요`)
+  showToast(`${ORDERS[slotIndex].name} · 가마에 넣었어요 · ${FIRING_SECONDS}초 뒤에 꺼내세요`)
 }
 
 function updateKiln(deltaSeconds: number): void {
   if (!kiln) return
-  kiln.remaining = Math.max(0, kiln.remaining - deltaSeconds)
-  if (kiln.remaining === 0) finishFiring()
+  const wasOverdue = kiln.elapsed > FIRING_SECONDS + FIRING_WINDOW
+  kiln.elapsed += deltaSeconds
+  const overdue = kiln.elapsed > FIRING_SECONDS + FIRING_WINDOW
+  if (overdue !== wasOverdue) workshop.setKilnFiring(true, overdue)
+  if (!wasOverdue && overdue) showToast('가마가 과열되고 있어요 · 어서 꺼내세요')
 }
 
-function finishFiring(): void {
+// 가마를 클릭하면 꺼낸다. 알맞은 때보다 이르거나 늦으면 굽기 완성도가 떨어진다.
+function unloadKiln(): void {
   if (!kiln) return
-  const { slotIndex, profile, damage } = kiln
+  const { slotIndex, profile, damage, elapsed } = kiln
+  const quality = firingQuality(elapsed)
   kiln = null
   workshop.setKilnFiring(false)
-  exhibit(slotIndex, profile, damage, workshop.kilnMouth)
-  showToast(`가마에서 ${ORDERS[slotIndex].name}이(가) 나왔어요`)
+  exhibit(slotIndex, profile, damage, quality, workshop.kilnMouth)
+  const label = quality >= 1 ? '알맞게 구웠어요' : elapsed < FIRING_SECONDS ? '설익었어요' : '너무 오래 구웠어요'
+  showToast(`${ORDERS[slotIndex].name} · ${label} · 굽기 ${Math.round(quality * 100)}%`)
 }
 
-function exhibit(slotIndex: number, profile: ClayProfile, damage: number, from: THREE.Vector3): void {
+function exhibit(slotIndex: number, profile: ClayProfile, damage: number, firing: number, from: THREE.Vector3): void {
   // 앞선 작품이 아직 날아가는 중이면 먼저 제자리에 앉힌다. 그대로 두면 공중에 남는다.
   settleFlight()
-  gallery[ORDERS[slotIndex].id] = { height: profile.height, outerRadii: [...profile.outerRadii], damage }
+  gallery[ORDERS[slotIndex].id] = { height: profile.height, outerRadii: [...profile.outerRadii], damage, firing }
   const piece = placePiece(slotIndex, profile)
   // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
   flight = {
@@ -976,15 +985,25 @@ function readStored(key: string): string | null {
   }
 }
 
-function pickPiece(clientX: number, clientY: number): ExhibitedPiece | null {
-  const pieces = exhibited.filter((piece): piece is ExhibitedPiece => piece !== null)
-  if (pieces.length === 0) return null
+function hitsKiln(clientX: number, clientY: number): boolean {
+  setPointerNdc(clientX, clientY)
+  raycaster.setFromCamera(pointerNdc, camera)
+  return raycaster.intersectObject(workshop.kilnGroup, true).length > 0
+}
 
+function setPointerNdc(clientX: number, clientY: number): void {
   const bounds = renderer.domElement.getBoundingClientRect()
   pointerNdc.set(
     ((clientX - bounds.left) / bounds.width) * 2 - 1,
     -((clientY - bounds.top) / bounds.height) * 2 + 1,
   )
+}
+
+function pickPiece(clientX: number, clientY: number): ExhibitedPiece | null {
+  const pieces = exhibited.filter((piece): piece is ExhibitedPiece => piece !== null)
+  if (pieces.length === 0) return null
+
+  setPointerNdc(clientX, clientY)
   raycaster.setFromCamera(pointerNdc, camera)
   const hit = raycaster.intersectObjects(pieces, false)[0]
   return hit ? (hit.object as ExhibitedPiece) : null
@@ -1001,6 +1020,10 @@ function setHoveredPiece(piece: ExhibitedPiece | null): void {
 
 // 선반의 작품을 클릭하면 값을 알려주고, 한 번 더 누르면 판다.
 function trySell(clientX: number, clientY: number): void {
+  if (kiln && hitsKiln(clientX, clientY)) {
+    unloadKiln()
+    return
+  }
   const picked = pickPiece(clientX, clientY)
   const slotIndex = picked ? exhibited.indexOf(picked) : -1
   if (slotIndex < 0) {
@@ -1011,7 +1034,8 @@ function trySell(clientX: number, clientY: number): void {
   const order = ORDERS[slotIndex]
   const saved = gallery[order.id]
   if (!saved) return
-  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order, saved.damage), priceMultiplier(owned))
+  const score = scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order, saved.damage)
+  const price = sellPrice({ ...score, total: Math.round(score.total * saved.firing) }, priceMultiplier(owned))
 
   if (pendingSaleIndex !== slotIndex) {
     pendingSaleIndex = slotIndex
@@ -1106,6 +1130,9 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 
   if (wheelState.mode === 'camera' && pointerButtons === 0) {
     setHoveredPiece(pickPiece(event.clientX, event.clientY))
+    if (!hoveredPiece && kiln && hitsKiln(event.clientX, event.clientY)) {
+      renderer.domElement.style.cursor = 'pointer'
+    }
   } else {
     setHoveredPiece(null)
   }

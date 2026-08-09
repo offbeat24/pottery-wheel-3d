@@ -9,7 +9,7 @@ import {
   WIDEN_LIMIT_RADIUS,
 } from '../src/game/clay'
 import { ORDERS } from '../src/game/orders'
-import { scoreClay, sellPrice } from '../src/game/scoring'
+import { FIRING_SECONDS, FIRING_WINDOW, firingQuality, scoreClay, sellPrice } from '../src/game/scoring'
 
 describe('주문 채점', () => {
   it.each(ORDERS)('$name 주문은 손으로 도달할 수 있는 범위 안에 있다', (order) => {
@@ -49,6 +49,21 @@ describe('주문 채점', () => {
     expect(torn.smoothness).toBeLessThan(clean.smoothness * 0.3)
     expect(torn.total).toBeLessThan(clean.total)
     expect(sellPrice(torn)).toBeLessThan(sellPrice(clean))
+  })
+
+  it('알맞은 때에 꺼내야 굽기가 100%다', () => {
+    expect(firingQuality(FIRING_SECONDS)).toBe(1)
+    expect(firingQuality(FIRING_SECONDS + FIRING_WINDOW)).toBe(1)
+    expect(firingQuality(FIRING_SECONDS - FIRING_WINDOW)).toBe(1)
+  })
+
+  it('일찍 꺼내면 늦게 꺼낸 것보다 더 깎이고, 바닥은 0.5다', () => {
+    const early = firingQuality(FIRING_SECONDS - 13)
+    const late = firingQuality(FIRING_SECONDS + 13)
+    expect(early).toBeLessThan(1)
+    expect(early).toBeLessThan(late)
+    expect(firingQuality(0)).toBe(0.5)
+    expect(firingQuality(600)).toBe(0.5)
   })
 
   it('주문 id는 중복되지 않는다', () => {

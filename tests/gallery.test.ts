@@ -6,14 +6,15 @@ const radii = (value = 0.7): number[] => Array.from({ length: PROFILE_SAMPLES },
 
 describe('전시 저장 복원', () => {
   it('저장한 작품을 그대로 되살린다', () => {
-    const saved = JSON.stringify({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4 } })
-    expect(parseGallery(saved)).toEqual({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4 } })
+    const saved = JSON.stringify({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4, firing: 0.8 } })
+    expect(parseGallery(saved)).toEqual({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4, firing: 0.8 } })
   })
 
   it('트임 값이 없거나 범위를 벗어난 저장본은 0으로 본다', () => {
     const noDamage = JSON.stringify({ old: { height: 1.4, outerRadii: radii() } })
     const badDamage = JSON.stringify({ hacked: { height: 1.4, outerRadii: radii(), damage: -5 } })
     expect(parseGallery(noDamage).old.damage).toBe(0)
+    expect(parseGallery(noDamage).old.firing).toBe(1)
     expect(parseGallery(badDamage).hacked.damage).toBe(0)
   })
 

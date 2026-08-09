@@ -25,6 +25,20 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition, surfaceD
   }
 }
 
+// 굽기: 너무 일찍 꺼내면 설익고 너무 늦게 꺼내면 과하게 익는다.
+export const FIRING_SECONDS = 35
+export const FIRING_WINDOW = 3
+
+/** 꺼낸 시점의 굽기 완성도(0.5~1). 알맞은 창 안이면 1이다. */
+export function firingQuality(elapsedSeconds: number): number {
+  const off = Math.abs(elapsedSeconds - FIRING_SECONDS) - FIRING_WINDOW
+  if (off <= 0) return 1
+  const early = elapsedSeconds < FIRING_SECONDS
+  // 설익은 쪽이 더 아프다. 덜 구운 그릇은 못 쓰지만 더 구운 그릇은 색만 상한다.
+  const penalty = off / (early ? 22 : 34)
+  return Math.max(0.5, 1 - penalty)
+}
+
 // 판매가는 점수만으로 정한다. 선형이면 못 만든 것과 잘 만든 것의 값이 비슷해지므로
 // 위쪽으로 가파른 곡선을 쓴다. 실패작도 값이 0은 아니다.
 export function sellPrice(score: ScoreBreakdown, multiplier = 1): number {
