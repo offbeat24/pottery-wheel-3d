@@ -39,7 +39,8 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   scene.add(backWall)
 
   addWindow(scene)
-  const displaySlots = addShelves(scene, displaySlotCount)
+  const shelves = addShelves(scene, displaySlotCount)
+  const displaySlots = shelves.slots
   addFloorDetails(scene)
 
   const table = new THREE.Group()
@@ -112,6 +113,7 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   const moveToWideStudio = (): void => {
     floorMaterial.color.setHex(0xd9ac82)
     backWall.material = new THREE.MeshStandardMaterial({ color: 0xf0dcc0, roughness: 0.95 })
+    shelves.upgrade()
   }
 
   return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots, moveToWideStudio }
@@ -141,17 +143,36 @@ function addWindow(scene: THREE.Scene): void {
 }
 
 // 선반은 완성한 작품을 올려두는 전시대다. 슬롯은 아래 칸부터 채운다.
-function addShelves(scene: THREE.Scene, slotCount: number): THREE.Vector3[] {
+function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vector3[]; upgrade: () => void } {
   const shelfMaterial = new THREE.MeshStandardMaterial({ color: 0x67412d, roughness: 0.9 })
-  for (const y of [2.1, 3.2]) {
+  const shelfY = [2.1, 3.2]
+  for (const y of shelfY) {
     const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.13, 0.62), shelfMaterial)
     shelf.position.set(-3.25, y, -4.25)
     shelf.castShadow = true
     scene.add(shelf)
   }
 
+  // 이사한 공방의 선반: 짙은 원목에 황동 테를 두르고 받침대를 세운다.
+  const upgrade = (): void => {
+    shelfMaterial.color.setHex(0x4b2f21)
+    shelfMaterial.roughness = 0.55
+    const brass = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.34, metalness: 0.72 })
+    for (const y of shelfY) {
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(3.44, 0.035, 0.66), brass)
+      trim.position.set(-3.25, y - 0.08, -4.25)
+      scene.add(trim)
+      for (const x of [-4.85, -1.65]) {
+        const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.34, 0.07), brass)
+        bracket.position.set(x, y - 0.24, -4.25)
+        bracket.castShadow = true
+        scene.add(bracket)
+      }
+    }
+  }
+
   const lowerCount = Math.ceil(slotCount / 2)
-  return Array.from({ length: slotCount }, (_, index) => {
+  const slots = Array.from({ length: slotCount }, (_, index) => {
     const isLower = index < lowerCount
     const column = isLower ? index : index - lowerCount
     const columns = isLower ? lowerCount : slotCount - lowerCount
@@ -159,6 +180,8 @@ function addShelves(scene: THREE.Scene, slotCount: number): THREE.Vector3[] {
     const x = -3.25 - (3.0 - step) / 2 + column * step
     return new THREE.Vector3(x, isLower ? 2.17 : 3.27, -4.12)
   })
+
+  return { slots, upgrade }
 }
 
 function addFloorDetails(scene: THREE.Scene): void {
