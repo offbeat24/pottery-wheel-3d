@@ -1,8 +1,16 @@
+export type ShopCategory = 'tool' | 'studio'
+
 export interface ShopItem {
   id: string
   name: string
   price: number
   description: string
+  category: ShopCategory
+}
+
+export const SHOP_CATEGORY_LABEL: Record<ShopCategory, string> = {
+  tool: '도구',
+  studio: '공방',
 }
 
 export const CARVING_KNIFE = 'carving-knife'
@@ -14,12 +22,14 @@ export const SHOP_ITEMS: ShopItem[] = [
     id: CARVING_KNIFE,
     name: '조각칼',
     price: 25000,
+    category: 'tool',
     description: '성형 중 E를 누르면 선택한 높이에 가는 홈을 새깁니다. 새김무늬 주문이 열립니다.',
   },
   {
     id: WIDE_STUDIO,
     name: '길가 공방으로 이사',
     price: 60000,
+    category: 'studio',
     description: '볕이 드는 넓은 공방으로 옮깁니다. 손님이 늘어 판매가가 1.3배가 됩니다.',
   },
 ]

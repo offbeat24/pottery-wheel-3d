@@ -19,7 +19,8 @@ import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS, availableOrders } from './game/orders'
 import { scoreClay, sellPrice } from './game/scoring'
-import { CARVING_KNIFE, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
+import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
+import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
@@ -93,7 +94,7 @@ app.innerHTML = `
           <div class="total-score"><strong id="shop-earnings">0</strong><span>원</span></div>
         </div>
         <div class="shop-list" id="shop-list"></div>
-        <div class="result-actions"><button class="primary-button" id="shop-close">작업으로 돌아가기</button></div>
+        <div class="result-actions shop-actions"><button class="ghost-button" id="reset-button">처음부터 다시</button><button class="primary-button" id="shop-close">작업으로 돌아가기</button></div>
       </div>
     </section>
 
@@ -142,6 +143,7 @@ const shopModal = getElement<HTMLElement>('#shop-modal')
 const shopList = getElement<HTMLElement>('#shop-list')
 const shopEarnings = getElement<HTMLElement>('#shop-earnings')
 const shopClose = getElement<HTMLButtonElement>('#shop-close')
+const resetButton = getElement<HTMLButtonElement>('#reset-button')
 const finishButton = getElement<HTMLButtonElement>('#finish-button')
 const restartButton = getElement<HTMLButtonElement>('#restart-button')
 const introModal = getElement<HTMLElement>('#intro-modal')
@@ -282,6 +284,8 @@ const owned = parseOwned(readStored(OWNED_KEY))
 let hoveredPiece: ExhibitedPiece | null = null
 let flight: { piece: ExhibitedPiece; from: THREE.Vector3; to: THREE.Vector3; progress: number } | null = null
 let saleHintShown = Object.keys(gallery).length > 0
+let resetConfirming = false
+let resetTimer = 0
 updateEarnings()
 ORDERS.forEach((order, index) => {
   const saved = gallery[order.id]
@@ -813,17 +817,45 @@ function placePiece(slotIndex: number, profile: ClayProfile): ExhibitedPiece {
 
 function renderShop(): void {
   shopEarnings.textContent = earnings.toLocaleString('ko-KR')
-  shopList.innerHTML = SHOP_ITEMS.map((item) => {
-    const isOwned = owned.includes(item.id)
-    const affordable = earnings >= item.price
-    const label = isOwned ? '보유 중' : `${item.price.toLocaleString('ko-KR')}원`
-    return `
-      <div class="shop-row${isOwned ? ' is-owned' : ''}">
-        <div><strong>${item.name}</strong><small>${item.description}</small></div>
-        <button class="secondary-button" data-shop-id="${item.id}" ${isOwned || !affordable ? 'disabled' : ''}>${label}</button>
-      </div>
-    `
+  const categories: ShopCategory[] = ['tool', 'studio']
+  shopList.innerHTML = categories.map((category) => {
+    const rows = SHOP_ITEMS.filter((item) => item.category === category).map((item) => {
+      const isOwned = owned.includes(item.id)
+      const affordable = earnings >= item.price
+      const label = isOwned ? '보유 중' : `${item.price.toLocaleString('ko-KR')}원`
+      return `
+        <div class="shop-row${isOwned ? ' is-owned' : ''}">
+          <div><strong>${item.name}</strong><small>${item.description}</small></div>
+          <button class="secondary-button" data-shop-id="${item.id}" ${isOwned || !affordable ? 'disabled' : ''}>${label}</button>
+        </div>
+      `
+    }).join('')
+    return `<section class="shop-section"><h3>${SHOP_CATEGORY_LABEL[category]}</h3>${rows}</section>`
   }).join('')
+}
+
+// 되돌릴 수 없는 초기화라 두 번 눌러야 실행한다.
+function requestFullReset(): void {
+  if (!resetConfirming) {
+    resetConfirming = true
+    resetButton.textContent = '한 번 더 누르면 삭제'
+    resetButton.classList.add('is-confirming')
+    resetTimer = window.setTimeout(() => {
+      resetConfirming = false
+      resetButton.textContent = '처음부터 다시'
+      resetButton.classList.remove('is-confirming')
+    }, 2600)
+    return
+  }
+  window.clearTimeout(resetTimer)
+  for (const key of [GALLERY_KEY, EARNINGS_KEY, OWNED_KEY]) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      // 지우지 못해도 새로고침은 진행한다.
+    }
+  }
+  window.location.reload()
 }
 
 function buyItem(itemId: string): void {
@@ -1122,6 +1154,7 @@ shopButton.addEventListener('click', () => {
 shopClose.addEventListener('click', () => {
   shopModal.hidden = true
 })
+resetButton.addEventListener('click', requestFullReset)
 shopList.addEventListener('click', (event) => {
   const target = (event.target as HTMLElement).closest<HTMLElement>('[data-shop-id]')
   if (target?.dataset.shopId) buyItem(target.dataset.shopId)
