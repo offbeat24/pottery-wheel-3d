@@ -1,4 +1,5 @@
 import { PROFILE_SAMPLES } from './clay'
+import { CARVING_KNIFE } from './shop'
 import type { OrderDefinition } from './types'
 
 function makeProfile(factory: (t: number) => number): number[] {
@@ -7,6 +8,11 @@ function makeProfile(factory: (t: number) => number): number[] {
 
 function bump(t: number, center: number, width: number, amount: number): number {
   return Math.exp(-Math.pow((t - center) / width, 2)) * amount
+}
+
+// 도구가 없으면 그 도구 전용 주문은 목록에 나타나지 않는다.
+export function availableOrders(owned: readonly string[]): OrderDefinition[] {
+  return ORDERS.filter((order) => !order.requires || owned.includes(order.requires))
 }
 
 export const ORDERS: OrderDefinition[] = [
@@ -86,6 +92,30 @@ export const ORDERS: OrderDefinition[] = [
     height: 1.62,
     accent: '#4f7a72',
     outerRadii: makeProfile((t) => 0.74 + Math.sin(t * Math.PI * 2 - Math.PI / 2) * 0.16 - bump(t, 1, 0.12, 0.1)),
+  },
+  {
+    id: 'carved-cup',
+    name: '새김무늬 잔',
+    subtitle: '조각칼 주문',
+    description: '몸통 가운데를 한 줄 깊게 파낸 잔',
+    height: 1.5,
+    accent: '#8c6f9c',
+    requires: CARVING_KNIFE,
+    outerRadii: makeProfile((t) => 0.68 + t * 0.06 - bump(t, 0.5, 0.045, 0.11)),
+  },
+  {
+    id: 'carved-jar',
+    name: '세 줄 새김 항아리',
+    subtitle: '조각칼 주문',
+    description: '어깨 아래로 가는 홈을 세 줄 나란히 새긴 항아리',
+    height: 1.66,
+    accent: '#4c6b8a',
+    requires: CARVING_KNIFE,
+    outerRadii: makeProfile((t) => {
+      const body = 0.62 + bump(t, 0.42, 0.34, 0.3) - bump(t, 1, 0.18, 0.12)
+      const grooves = bump(t, 0.6, 0.035, 0.09) + bump(t, 0.68, 0.035, 0.09) + bump(t, 0.76, 0.035, 0.09)
+      return body - grooves
+    }),
   },
   {
     id: 'slim-bottle',

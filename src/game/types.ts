@@ -28,6 +28,8 @@ export interface OrderDefinition {
   height: number
   outerRadii: number[]
   accent: string
+  /** 이 도구를 가져야 열리는 주문. 없으면 처음부터 열려 있다. */
+  requires?: string
 }
 
 export interface ScoreBreakdown {

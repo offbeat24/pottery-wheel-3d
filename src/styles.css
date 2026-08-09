@@ -246,6 +246,15 @@ button { font: inherit; }
 .pressure-track { height: 3px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
 .pressure-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: #ff6549; transition: width 60ms linear; }
 .pressure-row b { color: rgba(255,255,255,.66); font-size: 9px; text-align: right; }
+.shop-card { max-width: 560px; }
+.shop-list { display: grid; gap: 10px; margin: 18px 0 4px; }
+.shop-row { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 14px; background: rgba(120,84,58,.07); }
+.shop-row div { display: grid; gap: 4px; }
+.shop-row strong { font-size: 15px; }
+.shop-row small { color: #806655; line-height: 1.5; }
+.shop-row button { margin-left: auto; white-space: nowrap; }
+.shop-row.is-owned { opacity: .62; }
+
 .moisture-row .pressure-track i { background: #6fb6c8; }
 .mode-panel.is-dry .moisture-row .pressure-track i { background: #e0a35f; }
 .mode-panel.is-dry .moisture-row b { color: #f0c08a; }

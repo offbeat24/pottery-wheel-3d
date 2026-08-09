@@ -7,7 +7,11 @@ export interface WorkshopObjects {
   rightHand: THREE.Group
   contactRing: THREE.Mesh
   displaySlots: THREE.Vector3[]
+  /** 이사한 공방: 벽과 바닥이 밝아진다. 배경색은 호출한 쪽에서 맞춘다. */
+  moveToWideStudio: () => void
 }
+
+export const WIDE_STUDIO_BACKGROUND = 0xd9a173
 
 const shadow = (object: THREE.Object3D): void => {
   object.traverse((child) => {
@@ -104,7 +108,12 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   contactRing.visible = false
   spinningGroup.add(contactRing)
 
-  return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots }
+  const moveToWideStudio = (): void => {
+    floorMaterial.color.setHex(0xc08b62)
+    backWall.material = new THREE.MeshStandardMaterial({ color: WIDE_STUDIO_BACKGROUND, roughness: 1 })
+  }
+
+  return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots, moveToWideStudio }
 }
 
 function addWindow(scene: THREE.Scene): void {

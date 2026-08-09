@@ -13,7 +13,7 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBr
   const meanError = accumulatedError / sampleCount
   const silhouette = clampScore((1 - meanError / 0.42) * 100)
   const height = clampScore((1 - Math.abs(profile.height - order.height) / 0.72) * 100)
-  const smoothness = calculateSmoothness(profile.outerRadii)
+  const smoothness = calculateSmoothness(profile.outerRadii, order.outerRadii)
   const total = Math.round(silhouette * 0.65 + height * 0.25 + smoothness * 0.1)
 
   return {
@@ -25,8 +25,8 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBr
 }
 
 // 판매가는 점수만으로 정한다. 잘 만들수록 비싸지되 실패작도 값이 0은 아니다.
-export function sellPrice(score: ScoreBreakdown): number {
-  return Math.round((4000 + score.total * 120) / 100) * 100
+export function sellPrice(score: ScoreBreakdown, multiplier = 1): number {
+  return Math.round(((4000 + score.total * 120) * multiplier) / 100) * 100
 }
 
 function sampleOrder(order: OrderDefinition, normalizedHeight: number): number {
@@ -37,13 +37,18 @@ function sampleOrder(order: OrderDefinition, normalizedHeight: number): number {
   return order.outerRadii[low] * (1 - blend) + order.outerRadii[high] * blend
 }
 
-function calculateSmoothness(radii: number[]): number {
-  let roughness = 0
+// 주문이 홈을 요구하면 그만큼의 거칠기는 흠이 아니다. 목표보다 얼마나 더 거친지를 본다.
+function calculateSmoothness(radii: number[], targetRadii: number[]): number {
+  const excess = roughness(radii) - roughness(targetRadii)
+  return clampScore((1 - Math.max(0, excess - 0.004) / 0.035) * 100)
+}
+
+function roughness(radii: number[]): number {
+  let total = 0
   for (let index = 1; index < radii.length - 1; index += 1) {
-    roughness += Math.abs(radii[index - 1] - radii[index] * 2 + radii[index + 1])
+    total += Math.abs(radii[index - 1] - radii[index] * 2 + radii[index + 1])
   }
-  const average = roughness / Math.max(1, radii.length - 2)
-  return clampScore((1 - Math.max(0, average - 0.004) / 0.035) * 100)
+  return total / Math.max(1, radii.length - 2)
 }
 
 function clampScore(value: number): number {

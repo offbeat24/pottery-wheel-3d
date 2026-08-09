@@ -17,14 +17,15 @@ import {
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
-import { ORDERS } from './game/orders'
+import { ORDERS, availableOrders } from './game/orders'
 import { scoreClay, sellPrice } from './game/scoring'
+import { CARVING_KNIFE, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createSoundscape } from './audio/soundscape'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
-import { createWorkshop } from './visuals/workshop'
+import { WIDE_STUDIO_BACKGROUND, createWorkshop } from './visuals/workshop'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('앱 컨테이너를 찾을 수 없습니다.')
@@ -63,6 +64,7 @@ app.innerHTML = `
       </section>
     </div>
     <div class="game-actions">
+      <button class="restart-button" id="shop-button"><span>￦</span> 공방 상점</button>
       <button class="restart-button" id="sound-button" aria-pressed="false"><span>♪</span> 소리 끄기</button>
       <button class="restart-button" id="restart-button" data-testid="restart-action"><span>↻</span> 다시 시작</button>
       <button class="finish-button" id="finish-button" disabled>물레를 멈춰주세요</button>
@@ -81,6 +83,17 @@ app.innerHTML = `
           <div class="intro-step"><strong>4</strong><b>물 적시기</b><span>흙이 마르면 W를 눌러 물을 묻힙니다.</span></div>
         </div>
         <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button" data-testid="start-action">첫 주문 시작</button></div>
+      </div>
+    </section>
+
+    <section class="modal-layer" id="shop-modal" hidden>
+      <div class="result-card shop-card">
+        <div class="result-head">
+          <div><p class="eyebrow">공방 상점</p><h2>번 돈으로 공방을 갖춰보세요.</h2></div>
+          <div class="total-score"><strong id="shop-earnings">0</strong><span>원</span></div>
+        </div>
+        <div class="shop-list" id="shop-list"></div>
+        <div class="result-actions"><button class="primary-button" id="shop-close">작업으로 돌아가기</button></div>
       </div>
     </section>
 
@@ -124,6 +137,11 @@ const pressureValue = getElement<HTMLElement>('#pressure-value')
 const moistureFill = getElement<HTMLElement>('#moisture-fill')
 const moistureValue = getElement<HTMLElement>('#moisture-value')
 const soundButton = getElement<HTMLButtonElement>('#sound-button')
+const shopButton = getElement<HTMLButtonElement>('#shop-button')
+const shopModal = getElement<HTMLElement>('#shop-modal')
+const shopList = getElement<HTMLElement>('#shop-list')
+const shopEarnings = getElement<HTMLElement>('#shop-earnings')
+const shopClose = getElement<HTMLButtonElement>('#shop-close')
 const finishButton = getElement<HTMLButtonElement>('#finish-button')
 const restartButton = getElement<HTMLButtonElement>('#restart-button')
 const introModal = getElement<HTMLElement>('#intro-modal')
@@ -189,6 +207,7 @@ const ghostMaterial = new THREE.MeshBasicMaterial({
 
 let clay: ClayProfile = createInitialClay()
 let orderIndex = 0
+let activeOrders = ORDERS
 let currentOrder = ORDERS[orderIndex]
 let wheelState: WheelState = { speed: 0, pedalDown: false, mode: 'camera' }
 let previousMode = wheelState.mode
@@ -251,12 +270,18 @@ workshop.spinningGroup.add(ghostMesh)
 
 const GALLERY_KEY = 'pottery-wheel-3d:gallery'
 const EARNINGS_KEY = 'pottery-wheel-3d:earnings'
+const OWNED_KEY = 'pottery-wheel-3d:owned'
+const PIECE_SCALE = 0.26
 type ExhibitedPiece = THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
 const exhibited: (ExhibitedPiece | null)[] = ORDERS.map(() => null)
 const gallery = parseGallery(readStored(GALLERY_KEY))
 let earnings = parseEarnings(readStored(EARNINGS_KEY))
 let pendingSaleIndex = -1
 let saleTimer = 0
+const owned = parseOwned(readStored(OWNED_KEY))
+let hoveredPiece: ExhibitedPiece | null = null
+let flight: { piece: ExhibitedPiece; from: THREE.Vector3; to: THREE.Vector3; progress: number } | null = null
+let saleHintShown = Object.keys(gallery).length > 0
 updateEarnings()
 ORDERS.forEach((order, index) => {
   const saved = gallery[order.id]
@@ -537,7 +562,7 @@ function clearDetachedPieces(): void {
 }
 
 function updateOrderCard(): void {
-  const progress = ORDERS.map((_, index) => {
+  const progress = activeOrders.map((_, index) => {
     const className = index === orderIndex ? 'active' : index < orderIndex ? 'done' : ''
     return `<span class="${className}"></span>`
   }).join('')
@@ -546,7 +571,7 @@ function updateOrderCard(): void {
     <h2 class="order-title">${currentOrder.name}</h2>
     <p class="order-description">${currentOrder.description}</p>
     <div class="silhouette-wrap">${silhouetteSvg(currentOrder.outerRadii, currentOrder.height, currentOrder.accent)}</div>
-    <div class="order-progress">${progress}<b class="order-count">${orderIndex + 1} / ${ORDERS.length}</b></div>
+    <div class="order-progress">${progress}<b class="order-count">${orderIndex + 1} / ${activeOrders.length}</b></div>
   `
 }
 
@@ -606,7 +631,7 @@ function updateHud(): void {
   if (lastHintMode !== wheelState.mode) {
     controlHints.innerHTML = wheelState.mode === 'camera'
       ? `<div class="hint"><span class="mousecap">좌</span>회전</div><div class="hint"><span class="mousecap">우</span>이동</div><div class="hint"><span class="mousecap">휠</span>확대</div>`
-      : `<div class="hint"><span class="mousecap">좌</span>좁히기</div><div class="hint"><span class="mousecap">우</span>넓히기</div><div class="hint"><span class="mousecap">양쪽</span>높이</div><div class="hint"><span class="mousecap">W</span>물</div>`
+      : `<div class="hint"><span class="mousecap">좌</span>좁히기</div><div class="hint"><span class="mousecap">우</span>넓히기</div><div class="hint"><span class="mousecap">양쪽</span>높이</div><div class="hint"><span class="mousecap">W</span>물</div>${owned.includes(CARVING_KNIFE) ? `<div class="hint"><span class="mousecap">E</span>새김</div>` : ''}`
     lastHintMode = wheelState.mode
   }
 
@@ -713,7 +738,7 @@ function showResult(score: ScoreBreakdown): void {
       <div class="score-bar"><i style="width:${value}%"></i></div>
     </div>
   `).join('')
-  nextButton.textContent = orderIndex === ORDERS.length - 1 ? '첫 주문으로' : '다음 주문'
+  nextButton.textContent = orderIndex === activeOrders.length - 1 ? '첫 주문으로' : '다음 주문'
   resultModal.hidden = false
   setGameState('result')
 }
@@ -722,21 +747,53 @@ function finishWork(): void {
   if (finishButton.disabled) return
   pointerButtons = 0
   wheelState.pedalDown = false
-  exhibit(orderIndex)
+  exhibit(ORDERS.indexOf(currentOrder))
   showResult(scoreClay(clay, currentOrder))
 }
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 function exhibit(slotIndex: number): void {
   gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii] }
-  placePiece(slotIndex, clay)
+  const piece = placePiece(slotIndex, clay)
+  // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
+  flight = {
+    piece,
+    from: clayMesh.getWorldPosition(new THREE.Vector3()),
+    to: workshop.displaySlots[slotIndex].clone(),
+    progress: 0,
+  }
+  applyFlight()
   saveGallery()
   if (exhibited.every(Boolean)) showToast(`${ORDERS.length}점을 모두 완성해 선반에 전시했어요`)
 }
 
-function placePiece(slotIndex: number, profile: ClayProfile): void {
+function applyFlight(): void {
+  if (!flight) return
+  const eased = flight.progress * flight.progress * (3 - 2 * flight.progress)
+  flight.piece.position.lerpVectors(flight.from, flight.to, eased)
+  flight.piece.position.y += Math.sin(Math.PI * eased) * 0.7
+  flight.piece.scale.setScalar(1 - (1 - PIECE_SCALE) * eased)
+  flight.piece.rotation.y = eased * Math.PI * 2
+}
+
+function updateFlight(deltaSeconds: number): void {
+  if (!flight || !resultModal.hidden) return
+  flight.progress = Math.min(1, flight.progress + deltaSeconds / 1.1)
+  applyFlight()
+  if (flight.progress < 1) return
+  flight.piece.rotation.y = exhibited.indexOf(flight.piece) * 0.7
+  flight = null
+  if (!saleHintShown) {
+    saleHintShown = true
+    showToast('선반의 작품을 클릭하면 팔 수 있어요')
+  }
+}
+
+function placePiece(slotIndex: number, profile: ClayProfile): ExhibitedPiece {
   const previous = exhibited[slotIndex]
   if (previous) {
+    if (flight?.piece === previous) flight = null
+    if (hoveredPiece === previous) setHoveredPiece(null)
     scene.remove(previous)
     previous.geometry.dispose()
     previous.material.dispose()
@@ -745,12 +802,75 @@ function placePiece(slotIndex: number, profile: ClayProfile): void {
     createClayGeometry(profile, 28),
     new THREE.MeshStandardMaterial({ color: ORDERS[slotIndex].accent, roughness: 0.72 }),
   )
-  piece.scale.setScalar(0.26)
+  piece.scale.setScalar(PIECE_SCALE)
   piece.position.copy(workshop.displaySlots[slotIndex])
   piece.rotation.y = slotIndex * 0.7
   piece.castShadow = true
   scene.add(piece)
   exhibited[slotIndex] = piece
+  return piece
+}
+
+function renderShop(): void {
+  shopEarnings.textContent = earnings.toLocaleString('ko-KR')
+  shopList.innerHTML = SHOP_ITEMS.map((item) => {
+    const isOwned = owned.includes(item.id)
+    const affordable = earnings >= item.price
+    const label = isOwned ? '보유 중' : `${item.price.toLocaleString('ko-KR')}원`
+    return `
+      <div class="shop-row${isOwned ? ' is-owned' : ''}">
+        <div><strong>${item.name}</strong><small>${item.description}</small></div>
+        <button class="secondary-button" data-shop-id="${item.id}" ${isOwned || !affordable ? 'disabled' : ''}>${label}</button>
+      </div>
+    `
+  }).join('')
+}
+
+function buyItem(itemId: string): void {
+  const item = SHOP_ITEMS.find((candidate) => candidate.id === itemId)
+  if (!item || owned.includes(item.id) || earnings < item.price) return
+  earnings -= item.price
+  owned.push(item.id)
+  saveEarnings()
+  saveOwned()
+  updateEarnings()
+  applyOwnedEffects()
+  renderShop()
+  showToast(`${item.name} · 구입 완료`)
+}
+
+function applyOwnedEffects(): void {
+  if (owned.includes(WIDE_STUDIO)) {
+    workshop.moveToWideStudio()
+    scene.background = new THREE.Color(WIDE_STUDIO_BACKGROUND)
+    scene.fog = new THREE.Fog(WIDE_STUDIO_BACKGROUND, 8.5, 14)
+  }
+  const previousOrder = currentOrder
+  activeOrders = availableOrders(owned)
+  orderIndex = Math.max(0, activeOrders.indexOf(previousOrder))
+  currentOrder = activeOrders[orderIndex]
+  lastHintMode = ''
+  updateOrderCard()
+}
+
+// 조각칼로 선택한 높이에 가는 홈을 새긴다. 손 성형보다 훨씬 좁게 파인다.
+function carveGroove(): void {
+  if (!owned.includes(CARVING_KNIFE)) {
+    showToast('조각칼이 있어야 문양을 새길 수 있어요 · 공방 상점')
+    return
+  }
+  if (!started || !resultModal.hidden || wheelState.mode !== 'shaping' || collapseAnimation !== null) return
+  clay = deformRadius(clay, selectedIndex, -0.05 * workability(moisture), 1.1)
+  replaceMeshGeometry(clayMesh, clay)
+  soundscape.splash()
+}
+
+function saveOwned(): void {
+  try {
+    localStorage.setItem(OWNED_KEY, JSON.stringify(owned))
+  } catch {
+    showToast('구입 내역을 저장하지 못했어요 · 이번 세션에만 남습니다')
+  }
 }
 
 function readStored(key: string): string | null {
@@ -761,10 +881,9 @@ function readStored(key: string): string | null {
   }
 }
 
-// 선반의 작품을 클릭하면 값을 알려주고, 한 번 더 누르면 판다.
-function trySell(clientX: number, clientY: number): void {
+function pickPiece(clientX: number, clientY: number): ExhibitedPiece | null {
   const pieces = exhibited.filter((piece): piece is ExhibitedPiece => piece !== null)
-  if (pieces.length === 0) return
+  if (pieces.length === 0) return null
 
   const bounds = renderer.domElement.getBoundingClientRect()
   pointerNdc.set(
@@ -773,7 +892,22 @@ function trySell(clientX: number, clientY: number): void {
   )
   raycaster.setFromCamera(pointerNdc, camera)
   const hit = raycaster.intersectObjects(pieces, false)[0]
-  const slotIndex = hit ? exhibited.indexOf(hit.object as ExhibitedPiece) : -1
+  return hit ? (hit.object as ExhibitedPiece) : null
+}
+
+// 팔 수 있는 작품은 커서와 밝기로 알린다.
+function setHoveredPiece(piece: ExhibitedPiece | null): void {
+  if (hoveredPiece === piece) return
+  hoveredPiece?.material.emissive.setHex(0x000000)
+  hoveredPiece = piece
+  hoveredPiece?.material.emissive.setHex(0x5a3a16)
+  renderer.domElement.style.cursor = piece ? 'pointer' : ''
+}
+
+// 선반의 작품을 클릭하면 값을 알려주고, 한 번 더 누르면 판다.
+function trySell(clientX: number, clientY: number): void {
+  const picked = pickPiece(clientX, clientY)
+  const slotIndex = picked ? exhibited.indexOf(picked) : -1
   if (slotIndex < 0) {
     resetSaleConfirmation()
     return
@@ -782,7 +916,7 @@ function trySell(clientX: number, clientY: number): void {
   const order = ORDERS[slotIndex]
   const saved = gallery[order.id]
   if (!saved) return
-  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order))
+  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order), priceMultiplier(owned))
 
   if (pendingSaleIndex !== slotIndex) {
     pendingSaleIndex = slotIndex
@@ -795,6 +929,8 @@ function trySell(clientX: number, clientY: number): void {
   resetSaleConfirmation()
   const piece = exhibited[slotIndex]
   if (piece) {
+    if (flight?.piece === piece) flight = null
+    if (hoveredPiece === piece) setHoveredPiece(null)
     scene.remove(piece)
     piece.geometry.dispose()
     piece.material.dispose()
@@ -805,7 +941,7 @@ function trySell(clientX: number, clientY: number): void {
   earnings += price
   saveEarnings()
   updateEarnings()
-  showToast(`${order.name}을 ${price.toLocaleString('ko-KR')}원에 팔았어요`)
+  showToast(`${order.name} · ${price.toLocaleString('ko-KR')}원에 팔았어요`)
 }
 
 function resetSaleConfirmation(): void {
@@ -873,6 +1009,12 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   }
   pointerButtons = event.buttons
 
+  if (wheelState.mode === 'camera' && pointerButtons === 0) {
+    setHoveredPiece(pickPiece(event.clientX, event.clientY))
+  } else {
+    setHoveredPiece(null)
+  }
+
   if (wheelState.mode === 'camera' && pointerButtons !== 0) {
     if ((pointerButtons & 1) !== 0) {
       cameraState.yaw -= deltaX * 0.006
@@ -929,6 +1071,10 @@ renderer.domElement.addEventListener('wheel', (event) => {
 }, { passive: false })
 
 window.addEventListener('keydown', (event) => {
+  if (event.code === 'KeyE') {
+    if (!event.repeat) carveGroove()
+    return
+  }
   if (event.code === 'KeyW') {
     if (!started || !resultModal.hidden || wetting) return
     wetting = true
@@ -966,6 +1112,17 @@ startButton.addEventListener('click', () => {
 })
 finishButton.addEventListener('click', finishWork)
 restartButton.addEventListener('click', requestRestart)
+shopButton.addEventListener('click', () => {
+  renderShop()
+  shopModal.hidden = false
+})
+shopClose.addEventListener('click', () => {
+  shopModal.hidden = true
+})
+shopList.addEventListener('click', (event) => {
+  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-shop-id]')
+  if (target?.dataset.shopId) buyItem(target.dataset.shopId)
+})
 soundButton.addEventListener('click', () => {
   soundscape.setMuted(!soundscape.muted)
   soundButton.setAttribute('aria-pressed', String(soundscape.muted))
@@ -978,8 +1135,8 @@ retryButton.addEventListener('click', () => {
   showToast(`${currentOrder.name}, 다시 천천히 빚어봐요`)
 })
 nextButton.addEventListener('click', () => {
-  orderIndex = (orderIndex + 1) % ORDERS.length
-  currentOrder = ORDERS[orderIndex]
+  orderIndex = (orderIndex + 1) % activeOrders.length
+  currentOrder = activeOrders[orderIndex]
   resultModal.hidden = true
   resetClay()
   setGameState('playing')
@@ -998,6 +1155,7 @@ const resizeObserver = new ResizeObserver(() => {
 resizeObserver.observe(sceneHost)
 
 updateCamera()
+applyOwnedEffects()
 updateOrderCard()
 updateHud()
 
@@ -1027,6 +1185,7 @@ function animate(): void {
   clayMaterial.color.setHex(0xb96643).lerp(DRY_CLAY_COLOR, 1 - moisture)
   soundscape.update(wheelState.speed, currentAction(), shapingNow, deltaSeconds)
 
+  updateFlight(deltaSeconds)
   applyContinuousShaping(deltaSeconds)
   updateCollapseAnimation(deltaSeconds)
   updateDetachedPieces(deltaSeconds)
