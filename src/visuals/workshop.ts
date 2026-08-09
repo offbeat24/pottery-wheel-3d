@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import type { ShelfEffect, StudioEffect } from '../game/shop'
 
 export interface WorkshopObjects {
   spinningGroup: THREE.Group
@@ -7,13 +8,11 @@ export interface WorkshopObjects {
   rightHand: THREE.Group
   contactRing: THREE.Mesh
   displaySlots: THREE.Vector3[]
-  /** 이사한 공방: 벽과 바닥이 밝아진다. 배경색은 호출한 쪽에서 맞춘다. */
-  moveToWideStudio: () => void
-  /** 원목 진열장: 전시 선반이 짙은 원목과 황동 테로 바뀐다. */
-  upgradeDisplayShelf: () => void
+  /** 이사한 공방의 벽과 바닥을 칠한다. 배경색과 조명은 호출한 쪽에서 맞춘다. */
+  applyStudio: (studio: StudioEffect) => void
+  /** 전시 선반의 판재와 테를 바꾼다. */
+  applyShelf: (shelf: ShelfEffect) => void
 }
-
-export const WIDE_STUDIO_BACKGROUND = 0xe8c49a
 
 const shadow = (object: THREE.Object3D): void => {
   object.traverse((child) => {
@@ -32,10 +31,8 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   floor.receiveShadow = true
   scene.add(floor)
 
-  const backWall = new THREE.Mesh(
-    new THREE.PlaneGeometry(18, 9),
-    new THREE.MeshStandardMaterial({ color: 0xc89168, roughness: 1 }),
-  )
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xc89168, roughness: 1 })
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(18, 9), wallMaterial)
   backWall.position.set(0, 4.4, -4.8)
   backWall.receiveShadow = true
   scene.add(backWall)
@@ -111,10 +108,11 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   contactRing.visible = false
   spinningGroup.add(contactRing)
 
-  // 이사는 한눈에 보여야 한다. 벽은 회벽, 바닥은 밝은 마루로 바꾼다.
-  const moveToWideStudio = (): void => {
-    floorMaterial.color.setHex(0xd9ac82)
-    backWall.material = new THREE.MeshStandardMaterial({ color: 0xf0dcc0, roughness: 0.95 })
+  // 이사는 한눈에 보여야 한다. 벽과 바닥을 함께 칠한다.
+  const applyStudio = (studio: StudioEffect): void => {
+    floorMaterial.color.setHex(studio.floor)
+    wallMaterial.color.setHex(studio.wall)
+    wallMaterial.roughness = 0.95
   }
 
   return {
@@ -124,8 +122,8 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
     rightHand,
     contactRing,
     displaySlots,
-    moveToWideStudio,
-    upgradeDisplayShelf: shelves.upgrade,
+    applyStudio,
+    applyShelf: shelves.apply,
   }
 }
 
@@ -153,7 +151,7 @@ function addWindow(scene: THREE.Scene): void {
 }
 
 // 선반은 완성한 작품을 올려두는 전시대다. 슬롯은 아래 칸부터 채운다.
-function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vector3[]; upgrade: () => void } {
+function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vector3[]; apply: (shelf: ShelfEffect) => void } {
   const shelfMaterial = new THREE.MeshStandardMaterial({ color: 0x67412d, roughness: 0.9 })
   const shelfY = [2.1, 3.2]
   for (const y of shelfY) {
@@ -163,20 +161,22 @@ function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vecto
     scene.add(shelf)
   }
 
-  // 원목 진열장: 짙은 원목에 황동 테를 두르고 받침대를 세운다. 여러 번 불려도 한 번만 붙인다.
-  let upgraded = false
-  const upgrade = (): void => {
-    if (upgraded) return
-    upgraded = true
-    shelfMaterial.color.setHex(0x4b2f21)
-    shelfMaterial.roughness = 0.55
-    const brass = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.34, metalness: 0.72 })
+  // 진열장: 판재를 다시 칠하고 테와 받침대를 붙인다. 장식은 처음 한 번만 만든다.
+  const trimMaterial = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.34, metalness: 0.72 })
+  let trimAdded = false
+  const apply = (shelf: ShelfEffect): void => {
+    shelfMaterial.color.setHex(shelf.board)
+    shelfMaterial.roughness = shelf.boardRoughness
+    trimMaterial.color.setHex(shelf.trim)
+    trimMaterial.metalness = shelf.trimMetalness
+    if (trimAdded) return
+    trimAdded = true
     for (const y of shelfY) {
-      const trim = new THREE.Mesh(new THREE.BoxGeometry(3.44, 0.035, 0.66), brass)
+      const trim = new THREE.Mesh(new THREE.BoxGeometry(3.44, 0.035, 0.66), trimMaterial)
       trim.position.set(-3.25, y - 0.08, -4.25)
       scene.add(trim)
       for (const x of [-4.85, -1.65]) {
-        const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.34, 0.07), brass)
+        const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.34, 0.07), trimMaterial)
         bracket.position.set(x, y - 0.24, -4.25)
         bracket.castShadow = true
         scene.add(bracket)
@@ -194,7 +194,7 @@ function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vecto
     return new THREE.Vector3(x, isLower ? 2.17 : 3.27, -4.12)
   })
 
-  return { slots, upgrade }
+  return { slots, apply }
 }
 
 function addFloorDetails(scene: THREE.Scene): void {

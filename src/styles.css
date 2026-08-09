@@ -246,7 +246,8 @@ button { font: inherit; }
 .pressure-track { height: 3px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
 .pressure-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: #ff6549; transition: width 60ms linear; }
 .pressure-row b { color: rgba(255,255,255,.66); font-size: 9px; text-align: right; }
-.shop-card { max-width: 560px; }
+/* 물건이 늘면 카드가 화면을 넘어간다. 카드 안에서 스크롤한다. */
+.shop-card { max-width: 560px; max-height: 86vh; overflow-y: auto; }
 .shop-list { display: grid; gap: 18px; margin: 18px 0 4px; }
 .shop-section { display: grid; gap: 8px; }
 .shop-section h3 { font-size: 11px; letter-spacing: .16em; color: #a08472; text-transform: uppercase; }

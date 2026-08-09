@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { availableOrders } from '../src/game/orders'
-import { CARVING_KNIFE, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from '../src/game/shop'
+import {
+  CARVING_KNIFE,
+  DISPLAY_CASE,
+  HILL_STUDIO,
+  LACQUER_CASE,
+  SHOP_ITEMS,
+  WIDE_STUDIO,
+  bestOwned,
+  parseOwned,
+  priceMultiplier,
+} from '../src/game/shop'
 import { sellPrice } from '../src/game/scoring'
 
 describe('공방 상점', () => {
@@ -14,6 +24,20 @@ describe('공방 상점', () => {
     const score = { silhouette: 80, height: 80, smoothness: 80, total: 80 }
     expect(priceMultiplier([])).toBe(1)
     expect(sellPrice(score, priceMultiplier([WIDE_STUDIO]))).toBeGreaterThan(sellPrice(score))
+  })
+
+  it('같은 갈래를 여러 개 가지면 가장 좋은 것을 쓴다', () => {
+    expect(priceMultiplier([HILL_STUDIO, WIDE_STUDIO])).toBe(priceMultiplier([HILL_STUDIO]))
+    expect(priceMultiplier([HILL_STUDIO])).toBeGreaterThan(priceMultiplier([WIDE_STUDIO]))
+    expect(bestOwned([DISPLAY_CASE, LACQUER_CASE], 'shelf')?.id).toBe(LACQUER_CASE)
+    expect(bestOwned([], 'shelf')).toBeNull()
+  })
+
+  it('공방과 선반 물건은 저마다 효과를 들고 있다', () => {
+    for (const item of SHOP_ITEMS) {
+      if (item.category === 'studio') expect(item.studio).toBeDefined()
+      if (item.category === 'shelf') expect(item.shelf).toBeDefined()
+    }
   })
 
   it('조각칼 주문은 조각칼을 가져야 열린다', () => {

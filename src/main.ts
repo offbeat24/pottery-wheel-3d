@@ -19,14 +19,14 @@ import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS, availableOrders } from './game/orders'
 import { scoreClay, sellPrice } from './game/scoring'
-import { CARVING_KNIFE, DISPLAY_CASE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
+import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, bestOwned, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createSoundscape } from './audio/soundscape'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
-import { WIDE_STUDIO_BACKGROUND, createWorkshop } from './visuals/workshop'
+import { createWorkshop } from './visuals/workshop'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 if (!app) throw new Error('앱 컨테이너를 찾을 수 없습니다.')
@@ -817,7 +817,7 @@ function placePiece(slotIndex: number, profile: ClayProfile): ExhibitedPiece {
 
 function renderShop(): void {
   shopEarnings.textContent = earnings.toLocaleString('ko-KR')
-  const categories: ShopCategory[] = ['tool', 'studio']
+  const categories: ShopCategory[] = ['tool', 'studio', 'shelf']
   shopList.innerHTML = categories.map((category) => {
     const rows = SHOP_ITEMS.filter((item) => item.category === category).map((item) => {
       const isOwned = owned.includes(item.id)
@@ -872,15 +872,17 @@ function buyItem(itemId: string): void {
 }
 
 function applyOwnedEffects(): void {
-  if (owned.includes(WIDE_STUDIO)) {
-    workshop.moveToWideStudio()
-    scene.background = new THREE.Color(WIDE_STUDIO_BACKGROUND)
-    scene.fog = new THREE.Fog(WIDE_STUDIO_BACKGROUND, 9.5, 16)
+  const studio = bestOwned(owned, 'studio')?.studio
+  if (studio) {
+    workshop.applyStudio(studio)
+    scene.background = new THREE.Color(studio.background)
+    scene.fog = new THREE.Fog(studio.background, 9.5, 16)
     hemisphereLight.color.setHex(0xfff4e2)
-    hemisphereLight.intensity = 3
-    sun.intensity = 5
+    hemisphereLight.intensity = studio.hemisphereIntensity
+    sun.intensity = studio.sunIntensity
   }
-  if (owned.includes(DISPLAY_CASE)) workshop.upgradeDisplayShelf()
+  const shelf = bestOwned(owned, 'shelf')?.shelf
+  if (shelf) workshop.applyShelf(shelf)
   const previousOrder = currentOrder
   activeOrders = availableOrders(owned)
   orderIndex = Math.max(0, activeOrders.indexOf(previousOrder))
