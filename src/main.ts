@@ -13,6 +13,7 @@ import {
   isWidenLimit,
   sampleInnerRadius,
   sampleOuterRadius,
+  smoothProfile,
 } from './game/clay'
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
@@ -22,7 +23,7 @@ import { scoreClay, sellPrice } from './game/scoring'
 import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, bestOwned, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
-import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
+import { fragility, moistureLabel, surfaceTearing, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createSoundscape } from './audio/soundscape'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
@@ -434,7 +435,20 @@ function applyContinuousShaping(deltaSeconds: number): void {
   shapingAccumulator = 0
   const direction = action === 'narrow' ? -1 : 1
   clay = deformRadius(clay, selectedIndex, direction * shapingDelta * 0.2 * workability(moisture))
+  clay = tearDrySurface(clay, surfaceTearing(moisture))
   replaceMeshGeometry(clayMesh, clay)
+}
+
+// 마른 흙을 밀면 손이 닿은 자리가 튼다. 매끄러움 점수로 바로 이어지고 물을 묻혀 다듬어야 사라진다.
+function tearDrySurface(profile: ClayProfile, amount: number): ClayProfile {
+  if (amount <= 0) return profile
+  const radii = [...profile.outerRadii]
+  const from = Math.max(0, selectedIndex - 3)
+  const to = Math.min(radii.length - 1, selectedIndex + 3)
+  for (let index = from; index <= to; index += 1) {
+    radii[index] += index % 2 === 0 ? amount : -amount
+  }
+  return buildSafeProfile(profile.height, radii)
 }
 
 function triggerCut(): void {
@@ -1229,6 +1243,11 @@ function animate(): void {
     shaping: shapingNow && currentAction() !== 'idle',
     wetting,
   })
+  // 물을 묻히며 돌리면 표면이 고와진다. 트임을 되돌리는 유일한 방법이다.
+  if (wetting && wheelState.speed > CAMERA_ENTER_SPEED && collapseAnimation === null) {
+    clay = buildSafeProfile(clay.height, smoothProfile(clay.outerRadii, Math.min(0.4, deltaSeconds * 3)))
+    replaceMeshGeometry(clayMesh, clay)
+  }
   if (wasDry && moisture >= 0.3) showToast('흙이 다시 촉촉해졌어요')
   else if (!wasDry && moisture < 0.3) showToast('흙이 메말라가요 · W를 눌러 물을 묻히세요')
   clayMaterial.color.setHex(0xb96643).lerp(DRY_CLAY_COLOR, 1 - moisture)

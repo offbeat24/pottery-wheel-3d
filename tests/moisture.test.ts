@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DRY_SURFACE_THRESHOLD, MAX_TEARING, surfaceTearing } from '../src/game/moisture'
 import {
   MAX_FRAGILITY,
   MIN_WORKABILITY,
@@ -48,5 +49,18 @@ describe('흙 마름', () => {
 
   it('물기 구간마다 다른 이름을 붙인다', () => {
     expect(new Set([moistureLabel(1), moistureLabel(0.45), moistureLabel(0)]).size).toBe(3)
+  })
+})
+
+describe('마른 흙 표면 트임', () => {
+  it('젖어 있으면 트지 않는다', () => {
+    expect(surfaceTearing(1)).toBe(0)
+    expect(surfaceTearing(DRY_SURFACE_THRESHOLD)).toBe(0)
+  })
+
+  it('마를수록 가파르게 커지고 상한을 넘지 않는다', () => {
+    expect(surfaceTearing(0.4)).toBeGreaterThan(0)
+    expect(surfaceTearing(0.1)).toBeGreaterThan(surfaceTearing(0.4) * 2)
+    expect(surfaceTearing(0)).toBeCloseTo(MAX_TEARING, 5)
   })
 })
