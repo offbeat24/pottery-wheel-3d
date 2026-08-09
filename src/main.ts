@@ -758,6 +758,8 @@ function finishWork(): void {
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 function exhibit(slotIndex: number): void {
+  // 앞선 작품이 아직 날아가는 중이면 먼저 제자리에 앉힌다. 그대로 두면 공중에 남는다.
+  settleFlight()
   gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii] }
   const piece = placePiece(slotIndex, clay)
   // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
@@ -786,12 +788,19 @@ function updateFlight(deltaSeconds: number): void {
   flight.progress = Math.min(1, flight.progress + deltaSeconds / 1.1)
   applyFlight()
   if (flight.progress < 1) return
-  flight.piece.rotation.y = exhibited.indexOf(flight.piece) * 0.7
-  flight = null
+  settleFlight()
   if (!saleHintShown) {
     saleHintShown = true
     showToast('선반의 작품을 클릭하면 팔 수 있어요')
   }
+}
+
+function settleFlight(): void {
+  if (!flight) return
+  flight.progress = 1
+  applyFlight()
+  flight.piece.rotation.y = exhibited.indexOf(flight.piece) * 0.7
+  flight = null
 }
 
 function placePiece(slotIndex: number, profile: ClayProfile): ExhibitedPiece {
