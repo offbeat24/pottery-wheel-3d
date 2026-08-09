@@ -246,6 +246,9 @@ button { font: inherit; }
 .pressure-track { height: 3px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
 .pressure-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: #ff6549; transition: width 60ms linear; }
 .pressure-row b { color: rgba(255,255,255,.66); font-size: 9px; text-align: right; }
+.moisture-row .pressure-track i { background: #6fb6c8; }
+.mode-panel.is-dry .moisture-row .pressure-track i { background: #e0a35f; }
+.mode-panel.is-dry .moisture-row b { color: #f0c08a; }
 .mode-panel.is-warning .pressure-row b { color: #ffad91; }
 
 .pedal-panel {

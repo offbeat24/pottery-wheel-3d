@@ -19,7 +19,9 @@ import { computeHandTargets } from './game/handPlacement'
 import { ORDERS } from './game/orders'
 import { scoreClay } from './game/scoring'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
+import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
+import { createSoundscape } from './audio/soundscape'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
 import { createWorkshop } from './visuals/workshop'
 
@@ -49,6 +51,7 @@ app.innerHTML = `
           <div class="control-hints" id="control-hints"></div>
           <div class="contact-feedback"><span class="contact-dot" id="contact-dot"></span><span id="contact-state">물레가 돌면 손이 커서를 따라갑니다</span></div>
           <div class="pressure-row"><span>손 압력</span><div class="pressure-track"><i id="pressure-fill"></i></div><b id="pressure-value">안정</b></div>
+          <div class="pressure-row moisture-row"><span>흙 물기</span><div class="pressure-track"><i id="moisture-fill"></i></div><b id="moisture-value">촉촉</b></div>
         </div>
       </section>
       <section class="pedal-panel">
@@ -58,6 +61,7 @@ app.innerHTML = `
       </section>
     </div>
     <div class="game-actions">
+      <button class="restart-button" id="sound-button" aria-pressed="true"><span>♪</span> 소리 끄기</button>
       <button class="restart-button" id="restart-button"><span>↻</span> 다시 시작</button>
       <button class="finish-button" id="finish-button" disabled>물레를 멈춰주세요</button>
     </div>
@@ -72,6 +76,7 @@ app.innerHTML = `
           <div class="intro-step"><strong>1</strong><b>물레 돌리기</b><span>Space를 누르는 동안 물레가 빨라집니다.</span></div>
           <div class="intro-step"><strong>2</strong><b>양손 성형</b><span>좌클릭은 좁히고 우클릭은 넓힙니다.</span></div>
           <div class="intro-step"><strong>3</strong><b>높이 만들기</b><span>양쪽 클릭을 누른 채 위아래로 움직입니다.</span></div>
+          <div class="intro-step"><strong>4</strong><b>물 적시기</b><span>흙이 마르면 W를 눌러 물을 묻힙니다.</span></div>
         </div>
         <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button">첫 주문 시작</button></div>
       </div>
@@ -112,6 +117,9 @@ const contactDot = getElement<HTMLElement>('#contact-dot')
 const contactState = getElement<HTMLElement>('#contact-state')
 const pressureFill = getElement<HTMLElement>('#pressure-fill')
 const pressureValue = getElement<HTMLElement>('#pressure-value')
+const moistureFill = getElement<HTMLElement>('#moisture-fill')
+const moistureValue = getElement<HTMLElement>('#moisture-value')
+const soundButton = getElement<HTMLButtonElement>('#sound-button')
 const finishButton = getElement<HTMLButtonElement>('#finish-button')
 const restartButton = getElement<HTMLButtonElement>('#restart-button')
 const introModal = getElement<HTMLElement>('#intro-modal')
@@ -198,6 +206,9 @@ let lastHintMode = ''
 let toastTimer = 0
 let restartTimer = 0
 let restartConfirming = false
+let moisture = 1
+let wetting = false
+const soundscape = createSoundscape()
 
 interface CollapseAnimation {
   from: ClayProfile
@@ -227,6 +238,7 @@ workshop.spinningGroup.add(clayMesh)
 let ghostMesh = createGhostMesh(currentOrder)
 workshop.spinningGroup.add(ghostMesh)
 
+const DRY_CLAY_COLOR = new THREE.Color(0xcf9d7c)
 const raycaster = new THREE.Raycaster()
 const pointerNdc = new THREE.Vector2()
 
@@ -349,7 +361,7 @@ function applyContinuousShaping(deltaSeconds: number): void {
 
   const atLimit = action === 'narrow' ? isNarrowLimit(clay, selectedIndex) : isWidenLimit(clay, selectedIndex)
   if (atLimit) {
-    structuralPressure = Math.min(1, structuralPressure + deltaSeconds / 0.58)
+    structuralPressure = Math.min(1, structuralPressure + (deltaSeconds / 0.58) * fragility(moisture))
     if (!structuralWarningActive) {
       showToast(action === 'narrow' ? '주의 · 계속 누르면 위쪽 점토가 잘려요' : '주의 · 벽이 더 벌어지면 주저앉아요')
       structuralWarningActive = true
@@ -368,7 +380,7 @@ function applyContinuousShaping(deltaSeconds: number): void {
   const shapingDelta = shapingAccumulator
   shapingAccumulator = 0
   const direction = action === 'narrow' ? -1 : 1
-  clay = deformRadius(clay, selectedIndex, direction * shapingDelta * 0.2)
+  clay = deformRadius(clay, selectedIndex, direction * shapingDelta * 0.2 * workability(moisture))
   replaceMeshGeometry(clayMesh, clay)
 }
 
@@ -570,7 +582,7 @@ function updateHud(): void {
   if (lastHintMode !== wheelState.mode) {
     controlHints.innerHTML = wheelState.mode === 'camera'
       ? `<div class="hint"><span class="mousecap">좌</span>회전</div><div class="hint"><span class="mousecap">우</span>이동</div><div class="hint"><span class="mousecap">휠</span>확대</div>`
-      : `<div class="hint"><span class="mousecap">좌</span>좁히기</div><div class="hint"><span class="mousecap">우</span>넓히기</div><div class="hint"><span class="mousecap">양쪽</span>높이</div>`
+      : `<div class="hint"><span class="mousecap">좌</span>좁히기</div><div class="hint"><span class="mousecap">우</span>넓히기</div><div class="hint"><span class="mousecap">양쪽</span>높이</div><div class="hint"><span class="mousecap">W</span>물</div>`
     lastHintMode = wheelState.mode
   }
 
@@ -591,6 +603,9 @@ function updateHud(): void {
   contactDot.className = `contact-dot ${wheelState.mode === 'shaping' ? `is-${action}` : ''}`
   pressureFill.style.width = `${Math.round(structuralPressure * 100)}%`
   pressureValue.textContent = collapseAnimation ? '붕괴' : structuralPressure >= 0.72 ? '위험' : structuralPressure > 0.08 ? '주의' : '안정'
+  moistureFill.style.width = `${Math.round(moisture * 100)}%`
+  moistureValue.textContent = moistureLabel(moisture)
+  modePanel.classList.toggle('is-dry', moisture < 0.3)
 
   const canFinish = started && wheelState.mode === 'camera' && wheelState.speed <= CAMERA_ENTER_SPEED && resultModal.hidden && collapseAnimation === null
   finishButton.disabled = !canFinish
@@ -619,6 +634,8 @@ function resetClay(): void {
   structuralWarningActive = false
   structuralCooldown = 0
   shapingAccumulator = 0
+  moisture = 1
+  wetting = false
   selectedNormalizedHeight = 0.58
   selectedIndex = Math.round(selectedNormalizedHeight * (PROFILE_SAMPLES - 1))
   resetRestartConfirmation()
@@ -771,17 +788,28 @@ renderer.domElement.addEventListener('wheel', (event) => {
 }, { passive: false })
 
 window.addEventListener('keydown', (event) => {
+  if (event.code === 'KeyW') {
+    if (!started || !resultModal.hidden || wetting) return
+    wetting = true
+    soundscape.splash()
+    return
+  }
   if (event.code !== 'Space') return
   event.preventDefault()
   if (started && resultModal.hidden) wheelState.pedalDown = true
 })
 window.addEventListener('keyup', (event) => {
+  if (event.code === 'KeyW') {
+    wetting = false
+    return
+  }
   if (event.code !== 'Space') return
   event.preventDefault()
   wheelState.pedalDown = false
 })
 window.addEventListener('blur', () => {
   wheelState.pedalDown = false
+  wetting = false
   pointerButtons = 0
   pullAnchorHeight = null
   ignoreButtonsUntilRelease = false
@@ -790,11 +818,17 @@ window.addEventListener('blur', () => {
 startButton.addEventListener('click', () => {
   introModal.hidden = true
   started = true
+  soundscape.start()
   renderer.domElement.focus()
   showToast('Space를 눌러 물레를 돌려보세요')
 })
 finishButton.addEventListener('click', finishWork)
 restartButton.addEventListener('click', requestRestart)
+soundButton.addEventListener('click', () => {
+  soundscape.setMuted(!soundscape.muted)
+  soundButton.setAttribute('aria-pressed', String(!soundscape.muted))
+  soundButton.innerHTML = soundscape.muted ? '<span>♪</span> 소리 켜기' : '<span>♪</span> 소리 끄기'
+})
 retryButton.addEventListener('click', () => {
   resultModal.hidden = true
   resetClay()
@@ -834,6 +868,20 @@ function animate(): void {
     wheelState.pedalDown ? -0.22 : 0.08 + Math.sin(performance.now() * 0.006) * wheelState.speed * 0.07,
     1 - Math.exp(-deltaSeconds * 10),
   )
+
+  const shapingNow = wheelState.mode === 'shaping' && collapseAnimation === null
+  const wasDry = moisture < 0.3
+  moisture = updateMoisture({
+    moisture,
+    deltaSeconds,
+    spinning: wheelState.speed > CAMERA_ENTER_SPEED,
+    shaping: shapingNow && currentAction() !== 'idle',
+    wetting,
+  })
+  if (wasDry && moisture >= 0.3) showToast('흙이 다시 촉촉해졌어요')
+  else if (!wasDry && moisture < 0.3) showToast('흙이 메말라가요 · W를 눌러 물을 묻히세요')
+  clayMaterial.color.setHex(0xb96643).lerp(DRY_CLAY_COLOR, 1 - moisture)
+  soundscape.update(wheelState.speed, currentAction(), shapingNow, deltaSeconds)
 
   applyContinuousShaping(deltaSeconds)
   updateCollapseAnimation(deltaSeconds)
