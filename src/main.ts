@@ -16,6 +16,7 @@ import {
 } from './game/clay'
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
+import { parseGallery } from './game/gallery'
 import { ORDERS } from './game/orders'
 import { scoreClay } from './game/scoring'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
@@ -244,7 +245,13 @@ workshop.spinningGroup.add(clayMesh)
 let ghostMesh = createGhostMesh(currentOrder)
 workshop.spinningGroup.add(ghostMesh)
 
+const GALLERY_KEY = 'pottery-wheel-3d:gallery'
 const exhibited: (THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null)[] = ORDERS.map(() => null)
+const gallery = parseGallery(readStoredGallery())
+ORDERS.forEach((order, index) => {
+  const saved = gallery[order.id]
+  if (saved) placePiece(index, buildSafeProfile(saved.height, saved.outerRadii))
+})
 const DRY_CLAY_COLOR = new THREE.Color(0xcf9d7c)
 const raycaster = new THREE.Raycaster()
 const pointerNdc = new THREE.Vector2()
@@ -711,6 +718,13 @@ function finishWork(): void {
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 function exhibit(slotIndex: number): void {
+  gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii] }
+  placePiece(slotIndex, clay)
+  saveGallery()
+  if (exhibited.every(Boolean)) showToast(`${ORDERS.length}점을 모두 완성해 선반에 전시했어요`)
+}
+
+function placePiece(slotIndex: number, profile: ClayProfile): void {
   const previous = exhibited[slotIndex]
   if (previous) {
     scene.remove(previous)
@@ -718,8 +732,8 @@ function exhibit(slotIndex: number): void {
     previous.material.dispose()
   }
   const piece = new THREE.Mesh(
-    createClayGeometry(clay, 28),
-    new THREE.MeshStandardMaterial({ color: currentOrder.accent, roughness: 0.72 }),
+    createClayGeometry(profile, 28),
+    new THREE.MeshStandardMaterial({ color: ORDERS[slotIndex].accent, roughness: 0.72 }),
   )
   piece.scale.setScalar(0.26)
   piece.position.copy(workshop.displaySlots[slotIndex])
@@ -727,8 +741,23 @@ function exhibit(slotIndex: number): void {
   piece.castShadow = true
   scene.add(piece)
   exhibited[slotIndex] = piece
+}
 
-  if (exhibited.every(Boolean)) showToast(`${ORDERS.length}점을 모두 완성해 선반에 전시했어요`)
+function readStoredGallery(): string | null {
+  try {
+    return localStorage.getItem(GALLERY_KEY)
+  } catch {
+    return null
+  }
+}
+
+function saveGallery(): void {
+  // 저장 실패(용량 초과, 프라이빗 모드)는 전시 자체를 막지 않는다.
+  try {
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(gallery))
+  } catch {
+    showToast('전시를 저장하지 못했어요 · 이번 세션에만 남습니다')
+  }
 }
 
 renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault())
