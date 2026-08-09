@@ -28,10 +28,17 @@ describe('주문 채점', () => {
 
   it('판매가는 점수와 함께 오르고 실패작도 값이 남는다', () => {
     const price = (total: number): number => sellPrice({ silhouette: 0, height: 0, smoothness: 0, total })
-    expect(price(0)).toBe(4000)
-    expect(price(100)).toBe(16000)
-    expect(price(50)).toBeGreaterThan(price(49))
+    expect(price(0)).toBe(1000)
+    expect(price(100)).toBe(30000)
+    expect(price(70)).toBeGreaterThan(price(60))
     expect(price(87) % 100).toBe(0)
+  })
+
+  it('잘 만든 작품과 못 만든 작품의 값 차이가 뚜렷하다', () => {
+    const price = (total: number): number => sellPrice({ silhouette: 0, height: 0, smoothness: 0, total })
+    // 예전 선형 가격에서는 60점과 95점이 1.3배 차이였다.
+    expect(price(95) / price(60)).toBeGreaterThan(2)
+    expect(price(60) / price(30)).toBeGreaterThan(2)
   })
 
   it('주문 id는 중복되지 않는다', () => {

@@ -24,9 +24,11 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBr
   }
 }
 
-// 판매가는 점수만으로 정한다. 잘 만들수록 비싸지되 실패작도 값이 0은 아니다.
+// 판매가는 점수만으로 정한다. 선형이면 못 만든 것과 잘 만든 것의 값이 비슷해지므로
+// 위쪽으로 가파른 곡선을 쓴다. 실패작도 값이 0은 아니다.
 export function sellPrice(score: ScoreBreakdown, multiplier = 1): number {
-  return Math.round(((4000 + score.total * 120) * multiplier) / 100) * 100
+  const quality = clampScore(score.total) / 100
+  return Math.round(((1000 + 29000 * Math.pow(quality, 2.4)) * multiplier) / 100) * 100
 }
 
 function sampleOrder(order: OrderDefinition, normalizedHeight: number): number {

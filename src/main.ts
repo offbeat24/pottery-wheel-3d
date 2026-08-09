@@ -102,7 +102,7 @@ app.innerHTML = `
       <div class="result-card">
         <div class="result-head">
           <div><p class="eyebrow" id="result-eyebrow">작업 결과</p><h2 id="result-title">손끝이 만든 좋은 곡선이에요.</h2></div>
-          <div class="total-score"><strong id="total-score">84</strong><span>100점 만점</span></div>
+          <div class="total-score"><strong id="total-score">84</strong><span>100점 만점</span><b id="result-price">14,000원</b></div>
         </div>
         <div class="result-body">
           <div><div class="comparison" id="comparison"></div><div class="legend"><span><i></i>완성품</span><span><i class="target-key"></i>주문 윤곽</span></div></div>
@@ -724,6 +724,7 @@ function showResult(score: ScoreBreakdown): void {
       ? '손끝이 만든 좋은 곡선이에요.'
       : '흙과 조금 더 이야기를 나눠볼까요?'
   getElement<HTMLElement>('#total-score').textContent = String(score.total)
+  getElement<HTMLElement>('#result-price').textContent = `${sellPrice(score, priceMultiplier(owned)).toLocaleString('ko-KR')}원에 팔 수 있어요`
   const comparison = getElement<HTMLElement>('#comparison')
   comparison.innerHTML = silhouetteSvg(
     currentOrder.outerRadii,
