@@ -6,8 +6,15 @@ const radii = (value = 0.7): number[] => Array.from({ length: PROFILE_SAMPLES },
 
 describe('전시 저장 복원', () => {
   it('저장한 작품을 그대로 되살린다', () => {
-    const saved = JSON.stringify({ 'morning-cup': { height: 1.4, outerRadii: radii() } })
-    expect(parseGallery(saved)).toEqual({ 'morning-cup': { height: 1.4, outerRadii: radii() } })
+    const saved = JSON.stringify({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4 } })
+    expect(parseGallery(saved)).toEqual({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4 } })
+  })
+
+  it('트임 값이 없거나 범위를 벗어난 저장본은 0으로 본다', () => {
+    const noDamage = JSON.stringify({ old: { height: 1.4, outerRadii: radii() } })
+    const badDamage = JSON.stringify({ hacked: { height: 1.4, outerRadii: radii(), damage: -5 } })
+    expect(parseGallery(noDamage).old.damage).toBe(0)
+    expect(parseGallery(badDamage).hacked.damage).toBe(0)
   })
 
   it('빈 값이나 깨진 JSON은 빈 전시로 취급한다', () => {

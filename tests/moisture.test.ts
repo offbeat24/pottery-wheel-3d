@@ -61,6 +61,8 @@ describe('마른 흙 표면 트임', () => {
   it('마를수록 가파르게 커지고 상한을 넘지 않는다', () => {
     expect(surfaceTearing(0.4)).toBeGreaterThan(0)
     expect(surfaceTearing(0.1)).toBeGreaterThan(surfaceTearing(0.4) * 2)
+    // 꾸덕(0.45)에서도 이미 눈에 띄게 튼다.
+    expect(surfaceTearing(0.45)).toBeGreaterThan(MAX_TEARING * 0.2)
     expect(surfaceTearing(0)).toBeCloseTo(MAX_TEARING, 5)
   })
 })

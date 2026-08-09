@@ -41,6 +41,16 @@ describe('주문 채점', () => {
     expect(price(60) / price(30)).toBeGreaterThan(2)
   })
 
+  it('표면이 트면 매끄러움이 깎이고 총점과 값이 내려간다', () => {
+    const order = ORDERS[0]
+    const exact = buildSafeProfile(order.height, order.outerRadii)
+    const clean = scoreClay(exact, order)
+    const torn = scoreClay(exact, order, 1)
+    expect(torn.smoothness).toBeLessThan(clean.smoothness * 0.3)
+    expect(torn.total).toBeLessThan(clean.total)
+    expect(sellPrice(torn)).toBeLessThan(sellPrice(clean))
+  })
+
   it('주문 id는 중복되지 않는다', () => {
     expect(new Set(ORDERS.map((order) => order.id)).size).toBe(ORDERS.length)
   })

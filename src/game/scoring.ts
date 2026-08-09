@@ -1,7 +1,8 @@
 import { sampleOuterRadius } from './clay'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown } from './types'
 
-export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBreakdown {
+/** surfaceDamage: 마른 흙을 밀어 표면이 튼 정도(0~1). 매끄러움을 직접 깎는다. */
+export function scoreClay(profile: ClayProfile, order: OrderDefinition, surfaceDamage = 0): ScoreBreakdown {
   const sampleCount = 64
   let accumulatedError = 0
 
@@ -13,7 +14,7 @@ export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBr
   const meanError = accumulatedError / sampleCount
   const silhouette = clampScore((1 - meanError / 0.42) * 100)
   const height = clampScore((1 - Math.abs(profile.height - order.height) / 0.72) * 100)
-  const smoothness = calculateSmoothness(profile.outerRadii, order.outerRadii)
+  const smoothness = calculateSmoothness(profile.outerRadii, order.outerRadii) * (1 - clampScore(surfaceDamage * 100) / 100 * 0.8)
   const total = Math.round(silhouette * 0.65 + height * 0.25 + smoothness * 0.1)
 
   return {

@@ -23,7 +23,7 @@ import { scoreClay, sellPrice } from './game/scoring'
 import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, bestOwned, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
-import { fragility, moistureLabel, surfaceTearing, updateMoisture, workability } from './game/moisture'
+import { MAX_TEARING, fragility, moistureLabel, surfaceTearing, updateMoisture, workability } from './game/moisture'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createSoundscape } from './audio/soundscape'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
@@ -237,6 +237,7 @@ let restartTimer = 0
 let restartConfirming = false
 let moisture = 1
 let wetting = false
+let surfaceDamage = 0
 const soundscape = createSoundscape()
 
 function setGameState(state: 'intro' | 'playing' | 'result'): void {
@@ -435,7 +436,9 @@ function applyContinuousShaping(deltaSeconds: number): void {
   shapingAccumulator = 0
   const direction = action === 'narrow' ? -1 : 1
   clay = deformRadius(clay, selectedIndex, direction * shapingDelta * 0.2 * workability(moisture))
-  clay = tearDrySurface(clay, surfaceTearing(moisture))
+  const tearing = surfaceTearing(moisture)
+  surfaceDamage = Math.min(1, surfaceDamage + (tearing / MAX_TEARING) * shapingDelta * 0.5)
+  clay = tearDrySurface(clay, tearing)
   replaceMeshGeometry(clayMesh, clay)
 }
 
@@ -703,6 +706,7 @@ function resetClay(): void {
   shapingAccumulator = 0
   moisture = 1
   wetting = false
+  surfaceDamage = 0
   selectedNormalizedHeight = 0.58
   selectedIndex = Math.round(selectedNormalizedHeight * (PROFILE_SAMPLES - 1))
   resetRestartConfirmation()
@@ -767,14 +771,14 @@ function finishWork(): void {
   pointerButtons = 0
   wheelState.pedalDown = false
   exhibit(ORDERS.indexOf(currentOrder))
-  showResult(scoreClay(clay, currentOrder))
+  showResult(scoreClay(clay, currentOrder, surfaceDamage))
 }
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 function exhibit(slotIndex: number): void {
   // 앞선 작품이 아직 날아가는 중이면 먼저 제자리에 앉힌다. 그대로 두면 공중에 남는다.
   settleFlight()
-  gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii] }
+  gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii], damage: surfaceDamage }
   const piece = placePiece(slotIndex, clay)
   // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
   flight = {
@@ -978,7 +982,7 @@ function trySell(clientX: number, clientY: number): void {
   const order = ORDERS[slotIndex]
   const saved = gallery[order.id]
   if (!saved) return
-  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order), priceMultiplier(owned))
+  const price = sellPrice(scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order, saved.damage), priceMultiplier(owned))
 
   if (pendingSaleIndex !== slotIndex) {
     pendingSaleIndex = slotIndex
@@ -1246,6 +1250,7 @@ function animate(): void {
   // 물을 묻히며 돌리면 표면이 고와진다. 트임을 되돌리는 유일한 방법이다.
   if (wetting && wheelState.speed > CAMERA_ENTER_SPEED && collapseAnimation === null) {
     clay = buildSafeProfile(clay.height, smoothProfile(clay.outerRadii, Math.min(0.4, deltaSeconds * 3)))
+    surfaceDamage = Math.max(0, surfaceDamage - deltaSeconds * 0.5)
     replaceMeshGeometry(clayMesh, clay)
   }
   if (wasDry && moisture >= 0.3) showToast('흙이 다시 촉촉해졌어요')

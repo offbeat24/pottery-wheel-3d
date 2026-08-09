@@ -3,6 +3,8 @@ import { MAX_HEIGHT, PROFILE_SAMPLES } from './clay'
 export interface SavedPiece {
   height: number
   outerRadii: number[]
+  /** 완성 당시의 표면 트임. 저장본에 없으면 0으로 본다. */
+  damage: number
 }
 
 // localStorage는 사용자가 고칠 수 있으므로 형태가 맞는 항목만 살린다.
@@ -23,7 +25,8 @@ export function parseGallery(raw: string | null): Record<string, SavedPiece> {
     if (!isFiniteNumber(piece.height) || piece.height <= 0 || piece.height > MAX_HEIGHT) continue
     if (!Array.isArray(piece.outerRadii) || piece.outerRadii.length !== PROFILE_SAMPLES) continue
     if (!piece.outerRadii.every((radius) => isFiniteNumber(radius) && radius > 0)) continue
-    gallery[id] = { height: piece.height, outerRadii: [...piece.outerRadii] }
+    const damage = isFiniteNumber(piece.damage) ? Math.min(1, Math.max(0, piece.damage)) : 0
+    gallery[id] = { height: piece.height, outerRadii: [...piece.outerRadii], damage }
   }
   return gallery
 }

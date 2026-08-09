@@ -3,7 +3,7 @@
 export const DRY_WHILE_SHAPING = 0.05
 export const DRY_WHILE_SPINNING = 0.014
 // 마른 흙을 계속 밀면 표면이 트기 시작하는 지점과, 바싹 말랐을 때의 트임 크기.
-export const DRY_SURFACE_THRESHOLD = 0.55
+export const DRY_SURFACE_THRESHOLD = 0.6
 export const MAX_TEARING = 0.014
 export const WET_RATE = 0.9
 // 바싹 말라도 이만큼은 밀린다. 0 이면 손이 멈춘 것처럼 보여 고장으로 읽힌다.
@@ -41,7 +41,7 @@ export function fragility(moisture: number): number {
 /** 마른 흙을 밀 때 표면이 트는 정도. 젖어 있으면 0이고, 마를수록 가파르게 커진다. */
 export function surfaceTearing(moisture: number): number {
   const dryness = Math.max(0, DRY_SURFACE_THRESHOLD - clamp01(moisture)) / DRY_SURFACE_THRESHOLD
-  return MAX_TEARING * dryness * dryness
+  return MAX_TEARING * dryness
 }
 
 export function moistureLabel(moisture: number): string {
