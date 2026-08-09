@@ -61,6 +61,7 @@ app.innerHTML = `
       </section>
     </div>
     <div class="game-actions">
+      <button class="restart-button" id="sound-button" aria-pressed="false"><span>♪</span> 소리 끄기</button>
       <button class="restart-button" id="restart-button" data-testid="restart-action"><span>↻</span> 다시 시작</button>
       <button class="finish-button" id="finish-button" disabled>물레를 멈춰주세요</button>
     </div>
@@ -175,11 +176,12 @@ const clayMaterial = new THREE.MeshStandardMaterial({
   side: THREE.DoubleSide,
 })
 const ghostMaterial = new THREE.MeshBasicMaterial({
-  color: 0xffe3ba,
+  color: 0xfff1d8,
   transparent: true,
-  opacity: 0.11,
-  wireframe: true,
+  opacity: 0.22,
+  side: THREE.FrontSide,
   depthWrite: false,
+  depthTest: false,
 })
 
 let clay: ClayProfile = createInitialClay()
@@ -833,7 +835,7 @@ finishButton.addEventListener('click', finishWork)
 restartButton.addEventListener('click', requestRestart)
 soundButton.addEventListener('click', () => {
   soundscape.setMuted(!soundscape.muted)
-  soundButton.setAttribute('aria-pressed', String(!soundscape.muted))
+  soundButton.setAttribute('aria-pressed', String(soundscape.muted))
   soundButton.innerHTML = soundscape.muted ? '<span>♪</span> 소리 켜기' : '<span>♪</span> 소리 끄기'
 })
 retryButton.addEventListener('click', () => {

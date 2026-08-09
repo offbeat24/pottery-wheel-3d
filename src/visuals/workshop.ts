@@ -229,5 +229,12 @@ function createHand(side: 'left' | 'right'): THREE.Group {
   hand.add(sleeve)
   hand.rotation.z = side === 'left' ? -0.22 : 0.22
   shadow(hand)
+  // 목표 고스트(depthTest: false)는 투명 패스에서 그려진다. 손도 투명 패스로 옮기고 뒤에 그려 고스트 위에 오게 한다.
+  hand.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      child.material.transparent = true
+      child.renderOrder = 3
+    }
+  })
   return hand
 }

@@ -1,20 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { buildSafeProfile, createInitialClay } from '../src/game/clay'
+import {
+  buildSafeProfile,
+  createInitialClay,
+  CUT_LIMIT_RADIUS,
+  MAX_HEIGHT,
+  MIN_HEIGHT,
+  PROFILE_SAMPLES,
+  WIDEN_LIMIT_RADIUS,
+} from '../src/game/clay'
 import { ORDERS } from '../src/game/orders'
 import { scoreClay } from '../src/game/scoring'
 
 describe('주문 채점', () => {
-  it('목표 단면과 같은 점토는 99점 이상이다', () => {
-    const order = ORDERS[0]
-    const exact = buildSafeProfile(order.height, order.outerRadii)
-    expect(scoreClay(exact, order).total).toBeGreaterThanOrEqual(99)
+  it.each(ORDERS)('$name 주문은 손으로 도달할 수 있는 범위 안에 있다', (order) => {
+    expect(order.outerRadii).toHaveLength(PROFILE_SAMPLES)
+    expect(order.height).toBeGreaterThanOrEqual(MIN_HEIGHT)
+    expect(order.height).toBeLessThanOrEqual(MAX_HEIGHT)
+    expect(Math.min(...order.outerRadii)).toBeGreaterThan(CUT_LIMIT_RADIUS)
+    expect(Math.max(...order.outerRadii)).toBeLessThan(WIDEN_LIMIT_RADIUS)
   })
 
-  it('목표와 멀어지면 실루엣 점수가 감소한다', () => {
-    const order = ORDERS[2]
+  it.each(ORDERS)('$name 주문은 목표 단면과 같으면 99점, 초기 점토보다 높다', (order) => {
     const exact = buildSafeProfile(order.height, order.outerRadii)
-    const initial = createInitialClay()
-    expect(scoreClay(exact, order).silhouette).toBeGreaterThan(scoreClay(initial, order).silhouette)
+    expect(scoreClay(exact, order).total).toBeGreaterThanOrEqual(99)
+    expect(scoreClay(exact, order).silhouette).toBeGreaterThan(scoreClay(createInitialClay(), order).silhouette)
+  })
+
+  it('주문 id는 중복되지 않는다', () => {
+    expect(new Set(ORDERS.map((order) => order.id)).size).toBe(ORDERS.length)
   })
 
   it('동일한 입력을 항상 동일하게 채점한다', () => {
