@@ -6,6 +6,7 @@ export interface WorkshopObjects {
   leftHand: THREE.Group
   rightHand: THREE.Group
   contactRing: THREE.Mesh
+  displaySlots: THREE.Vector3[]
 }
 
 const shadow = (object: THREE.Object3D): void => {
@@ -17,7 +18,7 @@ const shadow = (object: THREE.Object3D): void => {
   })
 }
 
-export function createWorkshop(scene: THREE.Scene): WorkshopObjects {
+export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): WorkshopObjects {
   const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x9d6546, roughness: 0.93 })
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(18, 15), floorMaterial)
   floor.rotation.x = -Math.PI / 2
@@ -34,7 +35,7 @@ export function createWorkshop(scene: THREE.Scene): WorkshopObjects {
   scene.add(backWall)
 
   addWindow(scene)
-  addShelves(scene)
+  const displaySlots = addShelves(scene, displaySlotCount)
   addFloorDetails(scene)
 
   const table = new THREE.Group()
@@ -103,7 +104,7 @@ export function createWorkshop(scene: THREE.Scene): WorkshopObjects {
   contactRing.visible = false
   spinningGroup.add(contactRing)
 
-  return { spinningGroup, pedal, leftHand, rightHand, contactRing }
+  return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots }
 }
 
 function addWindow(scene: THREE.Scene): void {
@@ -129,7 +130,8 @@ function addWindow(scene: THREE.Scene): void {
   scene.add(crossX, crossY)
 }
 
-function addShelves(scene: THREE.Scene): void {
+// 선반은 완성한 작품을 올려두는 전시대다. 슬롯은 아래 칸부터 채운다.
+function addShelves(scene: THREE.Scene, slotCount: number): THREE.Vector3[] {
   const shelfMaterial = new THREE.MeshStandardMaterial({ color: 0x67412d, roughness: 0.9 })
   for (const y of [2.1, 3.2]) {
     const shelf = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.13, 0.62), shelfMaterial)
@@ -138,30 +140,15 @@ function addShelves(scene: THREE.Scene): void {
     scene.add(shelf)
   }
 
-  const colors = [0x985239, 0xb56f4c, 0x6f765b, 0xc28a5f, 0x8a5c45, 0xd19b72]
-  colors.forEach((color, index) => {
-    const pot = createDisplayPot(color, 0.32 + (index % 3) * 0.06)
-    pot.position.set(-4.25 + (index % 3) * 1.02, index < 3 ? 2.23 : 3.33, -4.12)
-    pot.rotation.y = index * 0.7
-    scene.add(pot)
+  const lowerCount = Math.ceil(slotCount / 2)
+  return Array.from({ length: slotCount }, (_, index) => {
+    const isLower = index < lowerCount
+    const column = isLower ? index : index - lowerCount
+    const columns = isLower ? lowerCount : slotCount - lowerCount
+    const step = 3.0 / Math.max(1, columns)
+    const x = -3.25 - (3.0 - step) / 2 + column * step
+    return new THREE.Vector3(x, isLower ? 2.17 : 3.27, -4.12)
   })
-}
-
-function createDisplayPot(color: number, scale: number): THREE.Mesh {
-  const points = [
-    new THREE.Vector2(0.48, 0),
-    new THREE.Vector2(0.54, 0.25),
-    new THREE.Vector2(0.65, 0.7),
-    new THREE.Vector2(0.42, 1.05),
-    new THREE.Vector2(0.45, 1.15),
-  ]
-  const mesh = new THREE.Mesh(
-    new THREE.LatheGeometry(points, 24),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.82 }),
-  )
-  mesh.scale.setScalar(scale)
-  mesh.castShadow = true
-  return mesh
 }
 
 function addFloorDetails(scene: THREE.Scene): void {

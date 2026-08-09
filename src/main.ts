@@ -168,7 +168,7 @@ const warmFill = new THREE.PointLight(0xffb06d, 22, 8, 2)
 warmFill.position.set(-3.5, 3.2, 2.7)
 scene.add(warmFill)
 
-const workshop = createWorkshop(scene)
+const workshop = createWorkshop(scene, ORDERS.length)
 const clayMaterial = new THREE.MeshStandardMaterial({
   color: 0xb96643,
   roughness: 0.66,
@@ -244,6 +244,7 @@ workshop.spinningGroup.add(clayMesh)
 let ghostMesh = createGhostMesh(currentOrder)
 workshop.spinningGroup.add(ghostMesh)
 
+const exhibited: (THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial> | null)[] = ORDERS.map(() => null)
 const DRY_CLAY_COLOR = new THREE.Color(0xcf9d7c)
 const raycaster = new THREE.Raycaster()
 const pointerNdc = new THREE.Vector2()
@@ -704,7 +705,30 @@ function finishWork(): void {
   if (finishButton.disabled) return
   pointerButtons = 0
   wheelState.pedalDown = false
+  exhibit(orderIndex)
   showResult(scoreClay(clay, currentOrder))
+}
+
+// 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
+function exhibit(slotIndex: number): void {
+  const previous = exhibited[slotIndex]
+  if (previous) {
+    scene.remove(previous)
+    previous.geometry.dispose()
+    previous.material.dispose()
+  }
+  const piece = new THREE.Mesh(
+    createClayGeometry(clay, 28),
+    new THREE.MeshStandardMaterial({ color: currentOrder.accent, roughness: 0.72 }),
+  )
+  piece.scale.setScalar(0.26)
+  piece.position.copy(workshop.displaySlots[slotIndex])
+  piece.rotation.y = slotIndex * 0.7
+  piece.castShadow = true
+  scene.add(piece)
+  exhibited[slotIndex] = piece
+
+  if (exhibited.every(Boolean)) showToast(`${ORDERS.length}점을 모두 완성해 선반에 전시했어요`)
 }
 
 renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault())
