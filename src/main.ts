@@ -19,7 +19,7 @@ import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS, availableOrders } from './game/orders'
 import { scoreClay, sellPrice } from './game/scoring'
-import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
+import { CARVING_KNIFE, DISPLAY_CASE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, WIDE_STUDIO, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { fragility, moistureLabel, updateMoisture, workability } from './game/moisture'
@@ -880,6 +880,7 @@ function applyOwnedEffects(): void {
     hemisphereLight.intensity = 3
     sun.intensity = 5
   }
+  if (owned.includes(DISPLAY_CASE)) workshop.upgradeDisplayShelf()
   const previousOrder = currentOrder
   activeOrders = availableOrders(owned)
   orderIndex = Math.max(0, activeOrders.indexOf(previousOrder))

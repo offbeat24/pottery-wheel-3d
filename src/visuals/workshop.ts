@@ -9,6 +9,8 @@ export interface WorkshopObjects {
   displaySlots: THREE.Vector3[]
   /** 이사한 공방: 벽과 바닥이 밝아진다. 배경색은 호출한 쪽에서 맞춘다. */
   moveToWideStudio: () => void
+  /** 원목 진열장: 전시 선반이 짙은 원목과 황동 테로 바뀐다. */
+  upgradeDisplayShelf: () => void
 }
 
 export const WIDE_STUDIO_BACKGROUND = 0xe8c49a
@@ -113,10 +115,18 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   const moveToWideStudio = (): void => {
     floorMaterial.color.setHex(0xd9ac82)
     backWall.material = new THREE.MeshStandardMaterial({ color: 0xf0dcc0, roughness: 0.95 })
-    shelves.upgrade()
   }
 
-  return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots, moveToWideStudio }
+  return {
+    spinningGroup,
+    pedal,
+    leftHand,
+    rightHand,
+    contactRing,
+    displaySlots,
+    moveToWideStudio,
+    upgradeDisplayShelf: shelves.upgrade,
+  }
 }
 
 function addWindow(scene: THREE.Scene): void {
@@ -153,8 +163,11 @@ function addShelves(scene: THREE.Scene, slotCount: number): { slots: THREE.Vecto
     scene.add(shelf)
   }
 
-  // 이사한 공방의 선반: 짙은 원목에 황동 테를 두르고 받침대를 세운다.
+  // 원목 진열장: 짙은 원목에 황동 테를 두르고 받침대를 세운다. 여러 번 불려도 한 번만 붙인다.
+  let upgraded = false
   const upgrade = (): void => {
+    if (upgraded) return
+    upgraded = true
     shelfMaterial.color.setHex(0x4b2f21)
     shelfMaterial.roughness = 0.55
     const brass = new THREE.MeshStandardMaterial({ color: 0xc9a24a, roughness: 0.34, metalness: 0.72 })

@@ -15,6 +15,7 @@ export const SHOP_CATEGORY_LABEL: Record<ShopCategory, string> = {
 
 export const CARVING_KNIFE = 'carving-knife'
 export const WIDE_STUDIO = 'wide-studio'
+export const DISPLAY_CASE = 'display-case'
 export const STUDIO_PRICE_MULTIPLIER = 1.3
 
 export const SHOP_ITEMS: ShopItem[] = [
@@ -31,6 +32,13 @@ export const SHOP_ITEMS: ShopItem[] = [
     price: 60000,
     category: 'studio',
     description: '볕이 드는 넓은 공방으로 옮깁니다. 손님이 늘어 판매가가 1.3배가 됩니다.',
+  },
+  {
+    id: DISPLAY_CASE,
+    name: '원목 진열장',
+    price: 30000,
+    category: 'studio',
+    description: '전시 선반을 짙은 원목과 황동 테 진열장으로 바꿉니다. 완성한 작품이 더 돋보입니다.',
   },
 ]
 
