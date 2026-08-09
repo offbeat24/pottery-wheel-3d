@@ -12,6 +12,10 @@ export interface WorkshopObjects {
   applyStudio: (studio: StudioEffect) => void
   /** 전시 선반의 판재와 테를 바꾼다. */
   applyShelf: (shelf: ShelfEffect) => void
+  /** 가마 아궁이의 불빛. 굽는 동안 켠다. */
+  setKilnFiring: (firing: boolean) => void
+  /** 가마에서 작품이 나오는 자리. */
+  kilnMouth: THREE.Vector3
 }
 
 const shadow = (object: THREE.Object3D): void => {
@@ -96,6 +100,37 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   const pedal = createPedal()
   scene.add(pedal)
 
+  const kiln = new THREE.Group()
+  const brick = new THREE.MeshStandardMaterial({ color: 0x8a5b45, roughness: 0.95 })
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.98, 1.5, 20), brick)
+  body.position.y = 0.75
+  kiln.add(body)
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.86, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2), brick)
+  dome.position.y = 1.5
+  kiln.add(dome)
+  for (const y of [0.42, 1.12]) {
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.05, 8, 24), new THREE.MeshStandardMaterial({ color: 0x5f4034, roughness: 0.8 }))
+    band.rotation.x = Math.PI / 2
+    band.position.y = y
+    kiln.add(band)
+  }
+  const emberMaterial = new THREE.MeshBasicMaterial({ color: 0x3a241c })
+  const mouth = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.42), emberMaterial)
+  mouth.position.set(0, 0.42, 0.99)
+  kiln.add(mouth)
+  kiln.position.set(-3.1, 0, -1.5)
+  kiln.rotation.y = 0.5
+  shadow(kiln)
+  scene.add(kiln)
+  const kilnLight = new THREE.PointLight(0xff8a3c, 0, 3.5, 2)
+  kilnLight.position.set(-3.1, 0.7, -0.9)
+  scene.add(kilnLight)
+  const setKilnFiring = (firing: boolean): void => {
+    emberMaterial.color.setHex(firing ? 0xffb352 : 0x3a241c)
+    kilnLight.intensity = firing ? 9 : 0
+  }
+  const kilnMouth = new THREE.Vector3(-3.1, 1.7, -1.5)
+
   const leftHand = createHand('left')
   const rightHand = createHand('right')
   scene.add(leftHand, rightHand)
@@ -124,6 +159,8 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
     displaySlots,
     applyStudio,
     applyShelf: shelves.apply,
+    setKilnFiring,
+    kilnMouth,
   }
 }
 

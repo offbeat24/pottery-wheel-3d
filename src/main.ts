@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import './styles.css'
 import {
   PROFILE_SAMPLES,
+  cloneProfile,
   buildSafeProfile,
   changeHeight,
   collapseWideSection,
@@ -47,6 +48,7 @@ app.innerHTML = `
       <div class="readout-rule"></div>
       <div class="dimension-row"><span>높이</span><strong id="height-value">18.2 cm</strong></div>
       <div class="dimension-row"><span>최대 폭</span><strong id="width-value">19.7 cm</strong></div>
+      <div class="dimension-row"><span>가마</span><strong id="kiln-value">비어 있음</strong></div>
       <div class="dimension-row"><span>공방 수익</span><strong id="earnings-value">0원</strong></div>
     </aside>
     <div class="bottom-dock">
@@ -128,6 +130,7 @@ const rpmValue = getElement<HTMLElement>('#rpm-value')
 const heightValue = getElement<HTMLElement>('#height-value')
 const widthValue = getElement<HTMLElement>('#width-value')
 const earningsValue = getElement<HTMLElement>('#earnings-value')
+const kilnValue = getElement<HTMLElement>('#kiln-value')
 const speedFill = getElement<HTMLElement>('#speed-fill')
 const modePanel = getElement<HTMLElement>('#mode-panel')
 const modeName = getElement<HTMLElement>('#mode-name')
@@ -276,6 +279,7 @@ const GALLERY_KEY = 'pottery-wheel-3d:gallery'
 const EARNINGS_KEY = 'pottery-wheel-3d:earnings'
 const OWNED_KEY = 'pottery-wheel-3d:owned'
 const PIECE_SCALE = 0.26
+const FIRING_SECONDS = 35
 type ExhibitedPiece = THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>
 const exhibited: (ExhibitedPiece | null)[] = ORDERS.map(() => null)
 const gallery = parseGallery(readStored(GALLERY_KEY))
@@ -285,6 +289,7 @@ let saleTimer = 0
 const owned = parseOwned(readStored(OWNED_KEY))
 let hoveredPiece: ExhibitedPiece | null = null
 let flight: { piece: ExhibitedPiece; from: THREE.Vector3; to: THREE.Vector3; progress: number } | null = null
+let kiln: { slotIndex: number; profile: ClayProfile; damage: number; remaining: number } | null = null
 let saleHintShown = Object.keys(gallery).length > 0
 let resetConfirming = false
 let resetTimer = 0
@@ -673,6 +678,7 @@ function updateHud(): void {
   contactDot.className = `contact-dot ${wheelState.mode === 'shaping' ? `is-${action}` : ''}`
   pressureFill.style.width = `${Math.round(structuralPressure * 100)}%`
   pressureValue.textContent = collapseAnimation ? '붕괴' : structuralPressure >= 0.72 ? '위험' : structuralPressure > 0.08 ? '주의' : '안정'
+  kilnValue.textContent = kiln ? `굽는 중 ${Math.ceil(kiln.remaining)}초` : '비어 있음'
   moistureFill.style.width = `${Math.round(moisture * 100)}%`
   moistureValue.textContent = moistureLabel(moisture)
   modePanel.classList.toggle('is-dry', moisture < 0.3)
@@ -770,20 +776,43 @@ function finishWork(): void {
   if (finishButton.disabled) return
   pointerButtons = 0
   wheelState.pedalDown = false
-  exhibit(ORDERS.indexOf(currentOrder))
+  loadKiln(ORDERS.indexOf(currentOrder))
   showResult(scoreClay(clay, currentOrder, surfaceDamage))
 }
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
-function exhibit(slotIndex: number): void {
+// 완성한 작품은 곧장 선반으로 가지 않고 가마에서 구워진다. 굽는 동안 다음 주문을 빚는다.
+function loadKiln(slotIndex: number): void {
+  if (kiln) finishFiring()
+  kiln = { slotIndex, profile: cloneProfile(clay), damage: surfaceDamage, remaining: FIRING_SECONDS }
+  workshop.setKilnFiring(true)
+  showToast(`${ORDERS[slotIndex].name}을(를) 가마에 넣었어요`)
+}
+
+function updateKiln(deltaSeconds: number): void {
+  if (!kiln) return
+  kiln.remaining = Math.max(0, kiln.remaining - deltaSeconds)
+  if (kiln.remaining === 0) finishFiring()
+}
+
+function finishFiring(): void {
+  if (!kiln) return
+  const { slotIndex, profile, damage } = kiln
+  kiln = null
+  workshop.setKilnFiring(false)
+  exhibit(slotIndex, profile, damage, workshop.kilnMouth)
+  showToast(`가마에서 ${ORDERS[slotIndex].name}이(가) 나왔어요`)
+}
+
+function exhibit(slotIndex: number, profile: ClayProfile, damage: number, from: THREE.Vector3): void {
   // 앞선 작품이 아직 날아가는 중이면 먼저 제자리에 앉힌다. 그대로 두면 공중에 남는다.
   settleFlight()
-  gallery[ORDERS[slotIndex].id] = { height: clay.height, outerRadii: [...clay.outerRadii], damage: surfaceDamage }
-  const piece = placePiece(slotIndex, clay)
+  gallery[ORDERS[slotIndex].id] = { height: profile.height, outerRadii: [...profile.outerRadii], damage }
+  const piece = placePiece(slotIndex, profile)
   // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
   flight = {
     piece,
-    from: clayMesh.getWorldPosition(new THREE.Vector3()),
+    from: from.clone(),
     to: workshop.displaySlots[slotIndex].clone(),
     progress: 0,
   }
@@ -832,7 +861,7 @@ function placePiece(slotIndex: number, profile: ClayProfile): ExhibitedPiece {
   }
   const piece = new THREE.Mesh(
     createClayGeometry(profile, 28),
-    new THREE.MeshStandardMaterial({ color: ORDERS[slotIndex].accent, roughness: 0.72 }),
+    new THREE.MeshStandardMaterial({ color: new THREE.Color(ORDERS[slotIndex].accent).multiplyScalar(0.82), roughness: 0.38 }),
   )
   piece.scale.setScalar(PIECE_SCALE)
   piece.position.copy(workshop.displaySlots[slotIndex])
@@ -1258,6 +1287,7 @@ function animate(): void {
   clayMaterial.color.setHex(0xb96643).lerp(DRY_CLAY_COLOR, 1 - moisture)
   soundscape.update(wheelState.speed, currentAction(), shapingNow, deltaSeconds)
 
+  updateKiln(deltaSeconds)
   updateFlight(deltaSeconds)
   applyContinuousShaping(deltaSeconds)
   updateCollapseAnimation(deltaSeconds)
