@@ -843,7 +843,10 @@ function applyOwnedEffects(): void {
   if (owned.includes(WIDE_STUDIO)) {
     workshop.moveToWideStudio()
     scene.background = new THREE.Color(WIDE_STUDIO_BACKGROUND)
-    scene.fog = new THREE.Fog(WIDE_STUDIO_BACKGROUND, 8.5, 14)
+    scene.fog = new THREE.Fog(WIDE_STUDIO_BACKGROUND, 9.5, 16)
+    hemisphereLight.color.setHex(0xfff4e2)
+    hemisphereLight.intensity = 3
+    sun.intensity = 5
   }
   const previousOrder = currentOrder
   activeOrders = availableOrders(owned)

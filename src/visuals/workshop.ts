@@ -11,7 +11,7 @@ export interface WorkshopObjects {
   moveToWideStudio: () => void
 }
 
-export const WIDE_STUDIO_BACKGROUND = 0xd9a173
+export const WIDE_STUDIO_BACKGROUND = 0xe8c49a
 
 const shadow = (object: THREE.Object3D): void => {
   object.traverse((child) => {
@@ -108,9 +108,10 @@ export function createWorkshop(scene: THREE.Scene, displaySlotCount: number): Wo
   contactRing.visible = false
   spinningGroup.add(contactRing)
 
+  // 이사는 한눈에 보여야 한다. 벽은 회벽, 바닥은 밝은 마루로 바꾼다.
   const moveToWideStudio = (): void => {
-    floorMaterial.color.setHex(0xc08b62)
-    backWall.material = new THREE.MeshStandardMaterial({ color: WIDE_STUDIO_BACKGROUND, roughness: 1 })
+    floorMaterial.color.setHex(0xd9ac82)
+    backWall.material = new THREE.MeshStandardMaterial({ color: 0xf0dcc0, roughness: 0.95 })
   }
 
   return { spinningGroup, pedal, leftHand, rightHand, contactRing, displaySlots, moveToWideStudio }
