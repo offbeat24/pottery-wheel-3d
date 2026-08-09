@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "https://github.com/offbeat24/bass-platform.git",
+    "branch": "feat/nan2026-theme-to-prototype-harness",
+    "commit": "90dd27d"
+  },
+  "package": {
+    "name": "bass-platform",
+    "version": "0.2.1",
+    "file": "tools/bass-platform-0.2.1.tgz",
+    "sha256": "7f43affc8b2589936f0ce41c7dd5f21aa0f07d9cb0c231dd2e15435060a93bd3"
+  },
+  "profiles": [
+    "common",
+    "web",
+    "server"
+  ]
+}
