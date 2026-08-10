@@ -1,0 +1,82 @@
+{
+  "task_id": "WATER-001",
+  "summary_of_changes": "물레 옆 작업대에 물그릇과 스펀지를 3D로 두고, 물그릇을 클릭해 스펀지를 적신 뒤 점토를 좌드래그로 문질러 물을 바르는 직접 조작을 넣었다. 즉시 수분을 올리던 addWater를 없애고 스펀지 잔량을 소비하는 rubWater로 바꿨으며, W와 물 적시기 버튼은 점토가 아니라 스펀지를 적시는 보조 입력으로 남겼다.",
+  "why": "물 다루기가 버튼 한 번의 결정이 아니라 손으로 하는 동작이 되어야 도예의 감각에 가깝고, 물그릇에서만 물이 나오는 단일 경로가 마름 회복과 과습 실패를 같은 조작 안에서 판단하게 만든다.",
+  "files_changed": [
+    "DESIGN.md",
+    "e2e/quality.spec.ts",
+    "e2e/water-001.spec.ts",
+    "src/game/process.ts",
+    "src/main.ts",
+    "src/styles.css",
+    "src/visuals/workshop.ts",
+    "tests/process.test.ts",
+    "tests/water-001.test.ts",
+    "tasks/WATER-001.md",
+    "critiques/WATER-001/design-1.yaml",
+    "critiques/WATER-001/design-2.yaml",
+    "critiques/WATER-001/test-1.yaml",
+    "critiques/WATER-001/test-2.yaml",
+    "critiques/WATER-001/simplicity-1.yaml",
+    "critiques/WATER-001/simplicity-2.yaml",
+    "records/WATER-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "auto" },
+    { "role": "test-critic", "alias": "auto" },
+    { "role": "simplicity-critic", "alias": "auto" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "bass doctor", "level": 1, "status": "pass" },
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "unit (43 tests, water-001 10 tests)", "level": 2, "status": "pass" },
+      { "name": "browser water bowl and sponge flow at 1440x900", "level": 2, "status": "pass" },
+      { "name": "browser full craft loop and solid-form finish at 1440x900 (2 tests)", "level": 2, "status": "pass" },
+      { "name": "production build", "level": 2, "status": "pass" },
+      { "name": "npm run verify", "level": 2, "status": "pass" }
+    ],
+    "not_verified": [
+      "터치·펜 입력에서의 문지르기 조작(데스크톱 마우스만 확인했다)",
+      "물레 고속 회전 중 장시간 문지르기의 체감 속도 균형(사람 판단 필요)"
+    ]
+  },
+  "critic_findings": {
+    "total": 10,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/WATER-001"
+  },
+  "known_limitations": [
+    "물은 점토 전체 수분 하나로만 오른다. 국소 물 자국과 부위별 수분은 1차 구현 범위 밖이다.",
+    "스펀지를 내려놓으면 남은 물은 사라진다. 물그릇으로 되돌리는 잔량 회수는 넣지 않았다.",
+    "물그릇 클릭은 성형 단계에서만 동작한다. 건조·유약 단계에서는 물이 필요 없어 비활성이다.",
+    "Vite build는 Three.js 메인 청크가 500kB를 넘는다는 기존 성능 경고를 남긴다."
+  ],
+  "out_of_scope_findings": [
+    "유체 시뮬레이션, 물방울, 바닥에 고이는 물",
+    "슬립·화장토 등 물 외의 액체 도구",
+    "완전건조·초벌 공정 변경"
+  ],
+  "docs_updated": {
+    "needed": true,
+    "updated": ["DESIGN.md", "tasks/WATER-001.md"]
+  },
+  "lessons": {
+    "recorded": true,
+    "candidates": [
+      "위가 막힌 원기둥은 내용물을 덮는다. 그릇 안에 무엇이 담긴 것을 보여줘야 하면 벽만 세우고 바닥과 내용물을 따로 넣는다.",
+      "새 3D 오브젝트는 HUD가 덮지 않는 자리인지 실제 목표 해상도 렌더로 확인한다. 클릭이 되어도 가려져 있으면 없는 물건이다.",
+      "포인터 모드를 새로 추가할 때는 그 모드가 기존 조작을 삼키지 않는지도 테스트로 고정한다. 시작 지점(점토 위)으로 범위를 좁히면 시점 조작을 잃지 않는다.",
+      "WebGL 드래그가 여러 번 들어가는 E2E는 기본 30초로 병렬 실행에서 모자라다. test.slow()를 쓰고 RPM 같은 숫자 대신 모드 전환을 신호로 삼는다."
+    ]
+  },
+  "rollback": {
+    "method": "물그릇·스펀지 3D 오브젝트, rubWater/soakSponge, 포인터 연결과 HUD 표시를 한 변경 단위로 되돌리고 즉시 수분을 올리는 addWater 경로를 복원한다."
+  },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900, WebGL2",
+    "notes": "물그릇이 물레 오른쪽 작업대에 하단 조작 패널에 가리지 않고 드러나며, 청색 물 표면과 그 위의 스펀지가 함께 보여 클릭 대상임이 읽히는지 실제 렌더로 확인했다. 문지르는 동안 스펀지가 점토 접촉점으로 옮겨가고 CONTROL MODE가 물 바를 준비와 물 바르는 중으로 바뀌며, LIVE MATERIAL 패널의 스펀지 수치와 수분계 아래 띠가 잘리지 않는 것도 확인했다. 콘솔 오류는 0건이었다."
+  }
+}

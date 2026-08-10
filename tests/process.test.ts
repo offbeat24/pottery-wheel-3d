@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addReserveClay,
-  addWater,
+  rubWater,
   applyGlaze,
   attachHandle,
   createInitialCraftState,
@@ -22,7 +22,7 @@ describe('현실적인 도예 제작 과정', () => {
     const initial = createInitialCraftState()
     const dry = updateMoisture(initial, 10, true, 0.6)
     expect(dry.moisture).toBeLessThan(initial.moisture)
-    expect(addWater(dry).moisture).toBeGreaterThan(dry.moisture)
+    expect(rubWater(dry, 100, 1).state.moisture).toBeGreaterThan(dry.moisture)
   })
 
   it('중속과 적정 수분에서 성형 효율이 가장 높다', () => {
@@ -41,7 +41,7 @@ describe('현실적인 도예 제작 과정', () => {
   })
 
   it('성형을 마쳐도 수분을 덮어쓰지 않고 건조를 거쳐 가죽경도가 된다', () => {
-    const wet = addWater(createInitialCraftState())
+    const wet = rubWater(createInitialCraftState(), 100, 0.3).state
     const drying = finishForming(wet)
     expect(drying.stage).toBe('drying')
     expect(drying.moisture).toBe(wet.moisture)

@@ -1,8 +1,7 @@
 ---
 id: WATER-001
 title: 물그릇과 스펀지 직접 적시기
-status: CAPTURED
-
+status: HUMAN_REVIEW
 type: feature
 profile: web
 
