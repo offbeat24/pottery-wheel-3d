@@ -1,0 +1,52 @@
+critic: test
+task_id: WIRECUT-001
+iteration: 2
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/wirecut-001.spec.ts
+      location: lines 45-57 and 71-86
+    description: >-
+      보완된 E2E는 한 y 위치에서 절단 높이가 초기보다 낮고 cutScore가 재시작한 초기
+      score와 다르다는 것만 확인한다. 포인터 y가 실제 cut index를 결정했는지와 결과 점수가
+      그 잘린 profile의 정확한 scoreClay 값인지는 여전히 비교하지 않는다. 모든 시작 y를
+      고정 index로 자르거나 절단 뒤 임의의 다른 shape score를 기록하는 구현도 두 inequality를
+      만족해 통과할 수 있다.
+    impact: >-
+      사용자가 선택한 높이와 다른 곳이 잘리거나, 결과 점수가 화면의 남은 단면과 불일치해도
+      "선택 높이 절단" 및 "HUD·결과 점수가 같은 프로필 사용" 수용 조건이 green으로 남는다.
+    verification: >-
+      충분히 떨어진 낮은 y와 높은 y에서 동일한 수평 드래그를 각각 실행하고 남은 높이가
+      서로 달라지는지 확인한다. 현재 E2E가 결과 total을 expected scoreClay 값과 비교하지
+      않고 단순 not.toBe만 사용하는지도 대조한다.
+    suggested_fix: >-
+      선택된 wireCutIndex 또는 cutHeight를 테스트 가능한 값으로 노출한다. 서로 다른 두 y가
+      서로 다른 기대 높이로 잘리는지 검증하고, 한 경로에서는 initial profile을 해당 index로
+      wireCutClayAt한 뒤 scoreClay 결과의 세 breakdown과 total을 결과 DOM/data 값과 정확히
+      비교한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/wirecut-001.spec.ts
+      location: lines 10-16 and 23-24
+    description: >-
+      회전 중 wire-action disabled와 정지 후 enabled는 추가됐지만, UI에 표시된 C 단축키가
+      회전 중에도 wire mode를 열지 못하는지와 이미 활성화된 실 모드에서 Space를 누르면
+      preview·drag가 취소되는지는 검증하지 않는다. 버튼만 막고 KeyC 경로를 허용하거나
+      활성 mode를 회전 중 유지하는 구현도 현재 E2E를 통과할 수 있다.
+    impact: >-
+      키보드 사용자는 회전 중 실 자르기에 진입할 수 있고, 진행 중 제스처와 성형 입력이
+      겹쳐 stopped-wheel 입력 경계가 무너질 수 있다.
+    verification: >-
+      회전 중 KeyC를 눌러 data-wire-mode가 false인지 확인하고, 정지 상태에서 실 모드를
+      활성화해 preview drag를 시작한 뒤 Space를 눌러 mode false, wire-line hidden, 높이 및
+      detached-count 불변인지 확인한다.
+    suggested_fix: >-
+      버튼과 단축키 양쪽의 회전 중 진입 거부를 E2E로 고정한다. 활성 실 mode와 drag에서
+      Space 가속 시 mode·preview가 즉시 취소되고 pointer release 후에도 절단되지 않는
+      경로를 추가한다.

@@ -1,0 +1,48 @@
+critic: test
+task_id: ONBOARDING-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 22-26
+    description: >-
+      안내 검증은 세 카드 제목과 효율 문구, 실 자르기 문장의 앞부분만 확인한다. 따라서
+      스펀지의 W/좌드래그/우클릭 조작을 틀리게 안내하거나, 흙 붙이기가 아래 높이를
+      추가한다는 설명과 형태 확인 제출 시점을 삭제해도 테스트가 통과한다. 특히 정지 카드
+      안의 나머지 문장을 "회전 중에도 가능"으로 바꿔 실제 가용 상태를 잘못 안내해도 현재
+      assertion은 이를 구분하지 못한다.
+    impact: >-
+      첫 플레이어가 실제로는 불가능한 상태에서 마무리 조작을 시도하거나 핵심 스펀지·흙
+      추가·제출 방법을 알지 못해도 온보딩 acceptance가 green으로 남는다.
+    verification: >-
+      각 카드를 개별 locator로 잡아 회전 카드에는 성형 입력과 34~85% 효율, 스펀지 카드에는
+      W로 적시기·점토 좌드래그·우클릭 내려놓기, 정지 카드에는 실 자르기·아래 높이 추가·형태
+      제출 문구가 함께 있는지 검증한다. 가능 상태를 표현하는 "회전 중"과 "정지 중"도 해당
+      카드 범위 안에서 assertion한다.
+    suggested_fix: >-
+      intro-step에 안정적인 test id를 부여하고 카드별 전체 핵심 문구를 assert하거나, 구조화된
+      조작 목록을 카드별로 검증해 제목과 설명이 서로 다른 상태로 이동하는 회귀도 막는다.
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 20-30
+    description: >-
+      1440×900 검증은 시작 버튼의 toBeVisible과 검증되지 않는 screenshot 첨부뿐이다. 카드
+      문구 assertion은 DOM text만 확인하므로 카드 일부가 display/opacity로 가려지거나 모달
+      아래로 잘리고, 시작 버튼이 일부만 보이거나 다른 요소와 겹쳐도 통과할 수 있다.
+    impact: >-
+      acceptance의 "내용과 시작 버튼이 한 화면에 보인다"가 실제 렌더 회귀를 잡지 못해 첫
+      화면에서 조작 안내나 진입 버튼을 읽거나 누를 수 없는 상태가 배포될 수 있다.
+    verification: >-
+      1440×900 viewport에서 intro-card, 세 intro-step, start-action의 bounding box가 모두
+      viewport 안에 완전히 포함되고 서로 겹치지 않는지 확인한다. 모달에 수직 overflow가 없는지
+      scrollHeight와 clientHeight로 확인하고, 각 카드와 버튼 자체에도 visible assertion을 둔다.
+    suggested_fix: >-
+      screenshot은 진단 자료로 유지하되 기계적 geometry assertion을 추가한다. 최소한 모든
+      핵심 카드와 버튼의 top/left가 0 이상이고 right/bottom이 viewport 크기 이하인지 검증한다.

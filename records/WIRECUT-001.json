@@ -1,0 +1,57 @@
+{
+  "task_id": "WIRECUT-001",
+  "summary_of_changes": "성형 도중 물레를 멈추고 실을 수평으로 당겨 선택 높이의 윗부분을 분리하는 직접 조작을 추가했다.",
+  "why": "완성 공정이 아닌 성형 과정에서 원하는 높이를 직접 잘라 형태를 정리하기 위해서다.",
+  "files_changed": [
+    "DESIGN.md",
+    "FEATURE_BACKLOG.md",
+    "README.md",
+    "src/game/clay.ts",
+    "src/main.ts",
+    "src/styles.css",
+    "tests/clay.test.ts",
+    "e2e/wirecut-001.spec.ts",
+    "tasks/WIRECUT-001.md",
+    "critiques/WIRECUT-001/design-2.yaml",
+    "critiques/WIRECUT-001/test-3.yaml",
+    "critiques/WIRECUT-001/simplicity-2.yaml",
+    "records/WIRECUT-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "reasoning-high" },
+    { "role": "test-critic", "alias": "reasoning-high" },
+    { "role": "simplicity-critic", "alias": "reasoning-high" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "unit wire profile split", "level": 2, "status": "pass" },
+      { "name": "1440x900 wire gesture, failure paths, restart and exact score E2E", "level": 2, "status": "pass" }
+    ],
+    "not_verified": []
+  },
+  "critic_findings": {
+    "total": 0,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/WIRECUT-001"
+  },
+  "known_limitations": [
+    "실 절단은 데스크톱 마우스와 수평 직선 제스처만 지원한다.",
+    "분리 조각은 짧은 브라우저 세션을 위한 근사 물리로 표현한다."
+  ],
+  "out_of_scope_findings": [],
+  "docs_updated": {
+    "needed": true,
+    "updated": ["DESIGN.md", "FEATURE_BACKLOG.md", "README.md"]
+  },
+  "lessons": { "recorded": false, "candidates": [] },
+  "rollback": {
+    "method": "실 도구 UI와 wireCutClayAt 호출을 제거하고 기존 구조 실패 절단만 유지한다."
+  },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900, WebGL2",
+    "notes": "실 선, 활성 도구, 취소 안내, 선택 높이 절단과 분리 조각을 실제 렌더에서 확인했다."
+  }
+}

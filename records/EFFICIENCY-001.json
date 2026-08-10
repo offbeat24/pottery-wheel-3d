@@ -1,0 +1,50 @@
+{
+  "task_id": "EFFICIENCY-001",
+  "summary_of_changes": "회전 속도에 따른 성형 효율 100% 구간의 상단을 72%에서 85%로 확장했다.",
+  "why": "물레가 약 85%로 회전할 때도 중속과 같은 성형 반응을 제공하기 위해서다.",
+  "files_changed": [
+    "DESIGN.md",
+    "FEATURE_BACKLOG.md",
+    "src/game/process.ts",
+    "src/main.ts",
+    "tests/process.test.ts",
+    "e2e/efficiency-001.spec.ts",
+    "tasks/EFFICIENCY-001.md",
+    "critiques/EFFICIENCY-001/design-2.yaml",
+    "critiques/EFFICIENCY-001/test-3.yaml",
+    "critiques/EFFICIENCY-001/simplicity-2.yaml",
+    "records/EFFICIENCY-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "reasoning-high" },
+    { "role": "test-critic", "alias": "reasoning-high" },
+    { "role": "simplicity-critic", "alias": "reasoning-high" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "unit efficiency boundary and regression suite", "level": 2, "status": "pass" },
+      { "name": "1440x900 high-speed HUD, center, wall and height shaping E2E", "level": 2, "status": "pass" }
+    ],
+    "not_verified": []
+  },
+  "critic_findings": {
+    "total": 0,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/EFFICIENCY-001"
+  },
+  "known_limitations": [
+    "85%를 넘는 회전에서는 기존 기울기로 성형 효율이 감소한다.",
+    "수분 상태에 따른 효율 감소와 구조 위험은 그대로 유지된다."
+  ],
+  "out_of_scope_findings": [],
+  "docs_updated": { "needed": true, "updated": ["DESIGN.md", "FEATURE_BACKLOG.md"] },
+  "lessons": { "recorded": false, "candidates": [] },
+  "rollback": { "method": "FULL_EFFICIENCY_MAX_SPEED를 0.72로 되돌린다." },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900, WebGL2",
+    "notes": "HUD와 계산이 같은 FULL_EFFICIENCY_MAX_SPEED 상수를 사용하며 98RPM 이상에서 효율 100%와 세 성형 입력을 확인했다."
+  }
+}

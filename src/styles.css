@@ -42,6 +42,17 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
 .scene-host canvas { cursor: grab; }
 .scene-host canvas.shaping { cursor: crosshair; }
 .scene-host canvas:active { cursor: grabbing; }
+.scene-host canvas.wire-cutting, .scene-host canvas.wire-cutting:active { cursor: ew-resize; }
+
+.wire-line {
+  position: absolute;
+  z-index: 4;
+  height: 2px;
+  pointer-events: none;
+  transform: translateY(-50%);
+  background: #fff1d4;
+  box-shadow: 0 0 0 1px rgba(67, 35, 20, .44), 0 0 9px rgba(255, 239, 205, .9);
+}
 
 .grain {
   position: absolute;
@@ -190,9 +201,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
 .stage-list li.done { color: #a9c19a; }
 .stage-list li.done i { border-color: #8dab7b; background: rgba(112,145,92,.28); }
 .stage-guide { min-height: 40px; margin: 12px 0; color: rgba(255,255,255,.62); font-size: 10px; line-height: 1.45; }
-.material-actions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.material-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .material-actions button { min-width: 0; height: 55px; padding: 6px 3px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px 13px 8px 8px; color: #fff8ea; background: rgba(255,255,255,.075); cursor: pointer; }
 .material-actions button:hover:not(:disabled) { border-color: rgba(255,218,173,.5); background: rgba(255,255,255,.13); }
+.material-actions button.is-active { color: #523224; border-color: #f4c990; background: #f4c990; box-shadow: 0 0 0 3px rgba(244,201,144,.14); }
 .material-actions button:disabled { opacity: .34; cursor: not-allowed; }
 .material-actions span { display: block; height: 18px; font-size: 15px; line-height: 1; }
 .material-actions b { display: block; margin-top: 2px; font-size: 9px; }
@@ -396,15 +408,17 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
   background: #fff8e9;
   box-shadow: 0 30px 80px rgba(47,25,14,.28);
 }
-.intro-card { padding: 42px 46px 38px; }
+.intro-card { width: min(900px, 92vw); padding: 34px 40px 30px; }
 .eyebrow { margin: 0 0 8px; color: #a55334; font-size: 11px; font-weight: 800; letter-spacing: .2em; }
 .intro-card h2, .result-card h2 { margin: 0; font: 700 36px/1.2 "Gowun Batang", serif; letter-spacing: -.05em; }
-.intro-lead { margin: 12px 0 26px; color: #776456; font-size: 15px; line-height: 1.7; }
-.intro-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
-.intro-step { min-height: 132px; padding: 18px; border: 1px solid #e3d5bd; border-radius: 6px 20px 6px 6px; background: #f5ead6; }
-.intro-step strong { display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 14px; border-radius: 50%; color: #fff7eb; background: #a95332; font-size: 12px; }
+.intro-lead { margin: 10px 0 20px; color: #776456; font-size: 14px; line-height: 1.6; }
+.intro-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 22px; }
+.intro-step { min-height: 174px; padding: 16px; border: 1px solid #e3d5bd; border-radius: 6px 20px 6px 6px; background: #f5ead6; }
+.intro-step strong { display: grid; place-items: center; width: 26px; height: 26px; margin-bottom: 11px; border-radius: 50%; color: #fff7eb; background: #a95332; font-size: 11px; }
 .intro-step b { display: block; margin-bottom: 6px; font-size: 14px; }
-.intro-step span { color: #806d5f; font-size: 12px; line-height: 1.5; }
+.intro-step span { display: block; color: #806d5f; font-size: 11px; line-height: 1.55; }
+.intro-step em { display: block; margin-top: 11px; padding-top: 9px; border-top: 1px solid #ddcdb4; color: #9b4e31; font-size: 10px; font-style: normal; font-weight: 800; }
+.intro-card kbd { display: inline-grid; min-width: 20px; height: 19px; padding: 0 5px; place-items: center; border: 1px solid #d6c2a4; border-radius: 5px; color: #624c3c; background: #fffaf0; box-shadow: 0 2px 0 #d8c5aa; font: 800 10px/1 Pretendard, sans-serif; }
 .primary-button, .secondary-button {
   min-width: 150px;
   height: 48px;

@@ -3,6 +3,7 @@ import { MAX_HEIGHT } from '../src/game/clay'
 import * as process from '../src/game/process'
 import {
   addReserveClay,
+  FULL_EFFICIENCY_MAX_SPEED,
   rubWater,
   createInitialCraftState,
   shapingEfficiency,
@@ -19,8 +20,14 @@ describe('현실적인 도예 제작 과정', () => {
   })
 
   it('중속과 적정 수분에서 성형 효율이 가장 높다', () => {
+    expect(FULL_EFFICIENCY_MAX_SPEED).toBe(0.85)
     expect(shapingEfficiency(0.55, 70)).toBe(1)
-    expect(shapingEfficiency(0.95, 70)).toBeLessThan(1)
+    expect(shapingEfficiency(0.85, 70)).toBe(1)
+    expect(shapingEfficiency(0.8501, 70)).toBeLessThan(1)
+    expect(shapingEfficiency(0.9, 70)).toBeCloseTo(0.91)
+    expect(shapingEfficiency(1, 70)).toBeCloseTo(0.73)
+    expect(shapingEfficiency(1, 10)).toBeLessThan(shapingEfficiency(1, 70))
+    expect(shapingEfficiency(1, 100)).toBeLessThan(shapingEfficiency(1, 70))
     expect(shapingEfficiency(0.55, 10)).toBeLessThan(0.2)
   })
 

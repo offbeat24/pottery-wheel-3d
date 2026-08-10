@@ -20,6 +20,7 @@ import {
   minimumWallThickness,
   openCenter,
   sampleOuterRadius,
+  wireCutClayAt,
 } from '../src/game/clay'
 
 describe('점토 단면 변형', () => {
@@ -100,6 +101,15 @@ describe('점토 단면 변형', () => {
     expect(cut!.remaining.height).toBeLessThan(clay.height)
     expect(cut!.detached.height).toBeGreaterThan(0.2)
     expect(cut!.remaining.outerRadii).toHaveLength(clay.outerRadii.length)
+  })
+
+  it('실은 반지름과 관계없이 선택 높이를 수평으로 자른다', () => {
+    const clay = createInitialClay()
+    const cut = wireCutClayAt(clay, 24)
+
+    expect(cut.remaining.height).toBeCloseTo(clay.height * 24 / 47)
+    expect(cut.detached.height).toBeGreaterThan(0.2)
+    expect(cut.remaining.outerRadii).toHaveLength(clay.outerRadii.length)
   })
 
   it('너무 넓어진 단면을 주저앉혀 구조 한계 안으로 되돌린다', () => {

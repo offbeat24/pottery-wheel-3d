@@ -1,0 +1,49 @@
+critic: test
+task_id: ONBOARDING-001
+iteration: 2
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 22-29
+    description: >-
+      좌드래그로 물 바르기, 흙의 아래 높이 추가, 형태 제출 문구는 보강됐다. 그러나 스펀지의
+      W 적시기와 우클릭 내려놓기는 여전히 assertion하지 않으며, 모든 문구를 intro-modal
+      전체에서만 찾는다. 따라서 W/우클릭 설명을 삭제하거나 반대로 안내해도, 또는 필수 문구를
+      엉뚱한 상태 카드로 옮겨도 현재 테스트가 통과한다.
+    impact: >-
+      acceptance의 상태별 스펀지 조작 구분과 기능 가용 시점이 잘못된 온보딩이 green으로
+      남아, 플레이어가 스펀지를 적시거나 내려놓는 방법을 알 수 없고 정지 전용 동작의 시점을
+      오해할 수 있다.
+    verification: >-
+      두 번째 카드 범위에서 W로 적시기, 점토 좌드래그로 물 바르기, 우클릭으로 내려놓기를
+      모두 확인한다. 세 번째 카드 범위에서 정지 중 제목과 실 자르기·아래 높이 추가·형태
+      제출 문구를 함께 확인한다.
+    suggested_fix: >-
+      세 intro-step을 nth 또는 안정적인 test id로 개별 선택해 카드별 핵심 문구를 assertion하고,
+      스펀지 카드에 W와 우클릭 문구를 추가로 고정한다.
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 30-39
+    description: >-
+      intro-card가 viewport 안에 있고 step bottom이 footer top보다 위인지는 보강됐다. 하지만
+      각 step과 start-action 자체의 visible/viewport bounds는 확인하지 않는다. 예를 들어
+      intro-steps를 visibility:hidden으로 만들면 DOM text와 bounding box는 그대로라 모든
+      assertion이 통과하고, 시작 버튼을 transform으로 화면 밖에 옮겨도 card bounds 검증은
+      이를 잡지 못할 수 있다.
+    impact: >-
+      안내 내용 또는 시작 버튼이 실제 1440×900 화면에서 보이지 않아도 "한 화면에 보인다"는
+      acceptance가 green으로 남을 수 있다.
+    verification: >-
+      세 intro-step과 start-action 각각에 visible assertion을 두고 각 bounding box의 네 변이
+      1440×900 viewport 안에 포함되는지 확인한다. step 간 수평 비겹침과 마지막 step bottom이
+      footer top 이하인 검증을 함께 유지한다.
+    suggested_fix: >-
+      intro-step locator 전체에 toBeVisible을 적용하고 stepBoxes 및 start-action boundingBox를
+      공통 viewport containment helper로 검증한다.

@@ -150,6 +150,15 @@ export function cutClayAt(profile: ClayProfile, centerIndex: number): CutResult 
   const safeIndex = Math.round(clamp(centerIndex, 7, profile.outerRadii.length - 6))
   if (profile.outerRadii[safeIndex] > CUT_LIMIT_RADIUS) return null
 
+  return splitClayAt(profile, safeIndex)
+}
+
+export function wireCutClayAt(profile: ClayProfile, centerIndex: number): CutResult {
+  const safeIndex = Math.round(clamp(centerIndex, 7, profile.outerRadii.length - 6))
+  return splitClayAt(profile, safeIndex)
+}
+
+function splitClayAt(profile: ClayProfile, safeIndex: number): CutResult {
   const normalizedCut = safeIndex / (profile.outerRadii.length - 1)
   const cutHeight = profile.height * normalizedCut
   const remainingOuter = resampleRange(profile.outerRadii, 0, normalizedCut, PROFILE_SAMPLES)

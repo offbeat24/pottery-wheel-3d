@@ -17,10 +17,48 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   await expect(surface).toBeVisible()
   const canvas = surface.locator('canvas')
   await expect(canvas).toBeVisible()
-  await expect(page.getByTestId('start-action')).toBeVisible()
+  const startAction = page.getByTestId('start-action')
+  await expect(startAction).toBeVisible()
   await expect(game).toHaveAttribute('data-game-state', 'intro')
+  const introSteps = page.locator('.intro-step')
+  await expect(introSteps).toHaveCount(3)
+  await expect(introSteps.nth(0)).toContainText('회전 중 · 성형')
+  await expect(introSteps.nth(0)).toContainText('좌클릭은 좁히기, 우클릭은 넓히기')
+  await expect(introSteps.nth(0)).toContainText('회전 34~85% · 효율 100%')
+  await expect(introSteps.nth(1)).toContainText('수분 · 스펀지')
+  await expect(introSteps.nth(1)).toContainText('W로 스펀지를 적시고')
+  await expect(introSteps.nth(1)).toContainText('점토를 좌드래그해 물을 바릅니다')
+  await expect(introSteps.nth(1)).toContainText('우클릭하면 스펀지를 내려놓습니다')
+  await expect(introSteps.nth(2)).toContainText('정지 중 · 마무리')
+  await expect(introSteps.nth(2)).toContainText('실을 수평으로 당겨 자르고')
+  await expect(introSteps.nth(2)).toContainText('흙 붙이기로 아래 높이를 더합니다')
+  await expect(introSteps.nth(2)).toContainText('형태 확인으로 바로 제출합니다')
+  const cardBox = await page.locator('.intro-card').boundingBox()
+  const footerBox = await page.locator('.intro-footer').boundingBox()
+  const viewport = page.viewportSize()
+  expect(cardBox).not.toBeNull()
+  expect(footerBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  const guideBoxes = []
+  for (const element of [introSteps.nth(0), introSteps.nth(1), introSteps.nth(2), startAction]) {
+    await expect(element).toBeVisible()
+    const box = await element.boundingBox()
+    expect(box).not.toBeNull()
+    guideBoxes.push(box!)
+  }
+  for (const box of [cardBox!, ...guideBoxes]) {
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport!.width)
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport!.height)
+  }
+  expect(Math.max(...guideBoxes.slice(0, 3).map((box) => box.y + box.height))).toBeLessThanOrEqual(footerBox!.y)
+  await testInfo.attach('play-guide-1440x900', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  })
 
-  await page.getByTestId('start-action').click()
+  await startAction.click()
   await expect(game).toHaveAttribute('data-game-state', 'playing')
   await expect(page.getByTestId('craft-panel')).toContainText('물레 성형')
   await expect(page.getByTestId('finish-action')).toBeEnabled()
