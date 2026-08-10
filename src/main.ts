@@ -912,6 +912,7 @@ function updateHud(): void {
   gameRoot.dataset.clayColor = clayMaterial.color.getHexString()
   gameRoot.dataset.clayRoughness = clayMaterial.roughness.toFixed(2)
   gameRoot.dataset.clayFlatShading = String(clayMaterial.flatShading)
+  gameRoot.dataset.maxRadius = maxRadius.toFixed(4)
   gameRoot.dataset.elapsedWorkSeconds = String(elapsedWorkSeconds)
   gameRoot.dataset.touchedWorkSeconds = String(touchedWorkSeconds)
   ghostMesh.visible = craft.stage !== 'fired'
@@ -939,7 +940,7 @@ function updateHud(): void {
     lastMaterialState = material.state
   }
   moistureFill.style.width = `${Math.round(craft.moisture)}%`
-  const speedBand = wheelState.speed < 0.12 ? '저속' : wheelState.speed <= 0.72 ? '안정 속도' : '고속'
+  const speedBand = wheelState.speed < 0.34 ? '저속' : wheelState.speed <= 0.72 ? '안정 속도' : '고속'
   speedEffect.textContent = material.state === 'dry'
     ? `과건조 · ${speedBand} · 물을 적셔주세요`
     : material.state === 'wet'

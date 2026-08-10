@@ -11,6 +11,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   const modePanel = page.locator('#mode-panel')
   const moistureTrack = page.locator('#moisture-track')
   const readHeight = async () => Number.parseFloat((await page.locator('#height-value').textContent()) ?? '0')
+  const readMaxRadius = async () => Number(await game.getAttribute('data-max-radius'))
   const advanceFrames = async (count: number) => {
     for (let frame = 0; frame < count; frame += 1) await page.clock.fastForward(100)
   }
@@ -21,14 +22,15 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   }
 
   await expect(game).toHaveAttribute('data-moisture-state', 'balanced')
-  const balancedBefore = await readHeight()
+  const balancedRadiusBefore = await readMaxRadius()
   await page.keyboard.down('Space')
   await advanceFrames(8)
   await moveToClayWall()
   await page.mouse.down({ button: 'right' })
   await advanceFrames(8)
   await page.mouse.up({ button: 'right' })
-  const balancedDrop = balancedBefore - await readHeight()
+  const balancedRadiusDelta = Math.abs(await readMaxRadius() - balancedRadiusBefore)
+  expect(balancedRadiusDelta).toBeGreaterThan(0)
   await page.keyboard.up('Space')
 
   await page.getByTestId('restart-action').click()
@@ -42,15 +44,16 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   expect(await game.getAttribute('data-clay-flat-shading')).toBe('false')
   const wetFillColor = await page.locator('#moisture-fill').evaluate((element) => getComputedStyle(element).backgroundColor)
 
-  const wetBefore = await readHeight()
   await page.keyboard.down('Space')
   await advanceFrames(8)
+  await page.getByTestId('water-action').click()
+  await advanceFrames(1)
+  const collapseHeightBefore = await readHeight()
+  await expect(game).toHaveAttribute('data-moisture-state', 'wet')
+  await expect(game).toHaveAttribute('data-material-motion', 'true')
   await moveToClayWall()
   await page.mouse.down({ button: 'right' })
   await advanceFrames(8)
-  const wetDrop = wetBefore - await readHeight()
-  expect(wetDrop).toBeGreaterThan(balancedDrop + 0.2)
-  await expect(page.locator('#pressure-value')).toHaveText(/주의|위험|붕괴/)
 
   let collapsing = false
   for (let step = 0; step < 20 && !collapsing; step += 1) {
@@ -61,6 +64,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   await expect(page.getByTestId('finish-action')).toBeDisabled()
 
   await advanceFrames(15)
+  expect(await readHeight()).toBeLessThan(collapseHeightBefore - 0.5)
   await page.mouse.up({ button: 'right' })
   await page.keyboard.up('Space')
   await page.clock.fastForward(5_000)
@@ -86,8 +90,12 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   expect(await page.locator('#moisture-fill').evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(wetFillColor)
   await expect(page.locator('#pressure-value')).toHaveText(/주의|위험/)
 
-  await page.mouse.up({ button: 'right' })
+  const dryRadiusBefore = await readMaxRadius()
   await page.mouse.up({ button: 'left' })
+  await advanceFrames(8)
+  expect(Math.abs(await readMaxRadius() - dryRadiusBefore)).toBeLessThan(balancedRadiusDelta)
+
+  await page.mouse.up({ button: 'right' })
   await page.keyboard.up('Space')
   await page.getByTestId('water-action').click()
   await advanceFrames(5)

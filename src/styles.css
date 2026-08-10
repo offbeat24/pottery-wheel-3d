@@ -166,7 +166,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
 .craft-panel {
   position: absolute;
   z-index: 6;
-  top: 350px;
+  top: 410px;
   right: 34px;
   width: 250px;
   padding: 16px;
@@ -505,7 +505,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
   .silhouette-wrap { height: 150px; }
   .silhouette-wrap svg { height: 140px; }
   .work-readout { top: 98px; right: 24px; }
-  .craft-panel { top: 300px; right: 24px; transform: scale(.9); transform-origin: top right; }
+  .craft-panel { top: 380px; right: 24px; transform: scale(.9); transform-origin: top right; }
   .bottom-dock { bottom: 18px; }
   .mode-panel { width: 500px; min-height: 92px; }
   .game-actions { right: 24px; bottom: 22px; }
