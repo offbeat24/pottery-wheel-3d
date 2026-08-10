@@ -6,7 +6,17 @@ export interface WorkshopObjects {
   leftHand: THREE.Group
   rightHand: THREE.Group
   contactRing: THREE.Mesh
+  /** 물그릇. 클릭 판정 대상이라 그룹째로 넘긴다. */
+  waterBowl: THREE.Group
+  sponge: THREE.Group
+  /** 문지르지 않을 때 스펀지가 놓여 있는 자리. */
+  spongeHome: THREE.Vector3
+  /** 스펀지가 머금은 물(0~1)을 색과 두께로 보여준다. */
+  setSpongeWetness: (ratio: number) => void
 }
+
+const DRY_SPONGE = 0xd9c8a4
+const WET_SPONGE = 0x8a7a5c
 
 const shadow = (object: THREE.Object3D): void => {
   object.traverse((child) => {
@@ -103,7 +113,67 @@ export function createWorkshop(scene: THREE.Scene): WorkshopObjects {
   contactRing.visible = false
   spinningGroup.add(contactRing)
 
-  return { spinningGroup, pedal, leftHand, rightHand, contactRing }
+  // 물그릇과 스펀지는 물레 오른쪽 앞 작업대에 둔다. 점토는 화면 가운데에 서므로 가리지 않는다.
+  const waterBowl = new THREE.Group()
+  const bowlClay = new THREE.MeshStandardMaterial({ color: 0x7d5f4a, roughness: 0.92 })
+  // 위가 막힌 원기둥은 물을 덮어 통짜 덩어리로 보인다. 벽만 세우고 바닥과 물을 따로 넣는다.
+  const bowlWall = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.36, 0.27, 0.24, 28, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x7d5f4a, roughness: 0.92, side: THREE.DoubleSide }),
+  )
+  bowlWall.position.y = 0.12
+  waterBowl.add(bowlWall)
+  const bowlFloor = new THREE.Mesh(new THREE.CircleGeometry(0.27, 28), bowlClay)
+  bowlFloor.rotation.x = -Math.PI / 2
+  bowlFloor.position.y = 0.006
+  waterBowl.add(bowlFloor)
+  const bowlRim = new THREE.Mesh(new THREE.TorusGeometry(0.358, 0.032, 8, 32), bowlClay)
+  bowlRim.rotation.x = Math.PI / 2
+  bowlRim.position.y = 0.24
+  waterBowl.add(bowlRim)
+  const waterSurface = new THREE.Mesh(
+    new THREE.CircleGeometry(0.34, 28),
+    new THREE.MeshStandardMaterial({ color: 0x9fc4c8, roughness: 0.06, metalness: 0.34 }),
+  )
+  waterSurface.rotation.x = -Math.PI / 2
+  waterSurface.position.y = 0.2
+  waterBowl.add(waterSurface)
+  // 하단 조작 패널이 화면 아래 가운데를 덮으므로, 물그릇은 물레 오른쪽 옆(뒤쪽으로 당긴 자리)에 둔다.
+  waterBowl.position.set(1.86, 0.4, 0.02)
+  shadow(waterBowl)
+  scene.add(waterBowl)
+
+  const spongeMaterial = new THREE.MeshStandardMaterial({ color: DRY_SPONGE, roughness: 0.96 })
+  const sponge = new THREE.Group()
+  const spongeBody = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 10), spongeMaterial)
+  spongeBody.scale.set(1, 0.52, 0.78)
+  sponge.add(spongeBody)
+  const spongeHome = new THREE.Vector3(1.86, 0.62, 0.02)
+  sponge.position.copy(spongeHome)
+  shadow(sponge)
+  scene.add(sponge)
+
+  const wetColor = new THREE.Color(WET_SPONGE)
+  const setSpongeWetness = (ratio: number): void => {
+    const wet = Math.min(1, Math.max(0, ratio))
+    spongeMaterial.color.setHex(DRY_SPONGE).lerp(wetColor, wet)
+    spongeMaterial.roughness = 0.96 - wet * 0.4
+    // 물을 머금으면 살짝 부푼다.
+    spongeBody.scale.set(1 + wet * 0.08, 0.52 + wet * 0.06, 0.78 + wet * 0.06)
+  }
+  setSpongeWetness(0)
+
+  return {
+    spinningGroup,
+    pedal,
+    leftHand,
+    rightHand,
+    contactRing,
+    waterBowl,
+    sponge,
+    spongeHome,
+    setSpongeWetness,
+  }
 }
 
 function addWindow(scene: THREE.Scene): void {

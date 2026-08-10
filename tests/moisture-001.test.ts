@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DRY_MOISTURE_LIMIT,
   WET_MOISTURE_LIMIT,
-  addWater,
   createInitialCraftState,
   moistureResponse,
+  rubWater,
   shapingEfficiency,
   speedRiskMultiplier,
   structuralPressureGain,
@@ -40,7 +40,7 @@ describe('MOISTURE-001 수분 물성', () => {
     const dry = { ...initial, moisture: 10 }
     const wet = { ...initial, moisture: 100 }
 
-    expect(moistureResponse(addWater(dry).moisture).state).toBe('balanced')
+    expect(moistureResponse(rubWater(dry, 100, 1).state.moisture).state).toBe('balanced')
     expect(moistureResponse(updateMoisture(wet, 5, false, 0).moisture).state).toBe('balanced')
   })
 

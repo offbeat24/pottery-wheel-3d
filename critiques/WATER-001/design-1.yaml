@@ -1,0 +1,62 @@
+critic: design
+task_id: WATER-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/visuals/workshop.ts
+      location: waterBowl 구성
+    description: >-
+      물그릇 몸통을 위가 막힌 CylinderGeometry로 만들어 뚜껑면이 물 표면을 덮었다.
+      1440×900 실제 렌더에서 그릇이 아니라 갈색 통짜 덩어리로 보이고 물이 전혀 보이지 않았다.
+    impact: >-
+      물그릇이 물이 담긴 그릇으로 읽히지 않으므로 클릭해 스펀지를 적신다는 흐름이 설명 없이 이해되지 않는다.
+    verification: >-
+      1440×900 실제 렌더 스크린샷을 확대해 물 표면(청색 원)이 보이는지 확인한다.
+    suggested_fix: >-
+      벽만 세운 openEnded 원기둥으로 바꾸고 바닥 원과 물 표면을 따로 넣는다.
+    resolution: 적용 완료 — openEnded 벽 + 바닥 원 + 물 표면으로 분리했다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/visuals/workshop.ts
+      location: waterBowl.position
+    description: >-
+      물그릇을 작업대 앞쪽(z 0.66)에 두어 화면 아래 조작 패널(FOOT PEDAL)이 절반을 덮었다.
+      클릭은 되지만 물건이 잘려 보인다.
+    impact: 조작할 수 있어도 가려져 있으면 없는 물건으로 읽힌다.
+    verification: 1440×900 렌더에서 물그릇 전체가 HUD 위에 드러나는지 확인한다.
+    suggested_fix: 물레 오른쪽 옆(뒤쪽으로 당긴 자리)으로 옮긴다.
+    resolution: 적용 완료 — (1.86, 0.4, 0.02)로 옮겨 하단 패널 위로 완전히 드러난다.
+
+  - severity: low
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: updateSpongePosition
+    description: >-
+      물을 머금어 "물 바를 준비" 상태인데도 스펀지가 물그릇 안에 잠긴 자리에 머물러,
+      들고 있다는 상태 표시와 화면이 어긋났다.
+    impact: 스펀지를 쥐었는지 놓았는지 3D 화면만으로는 알 수 없다.
+    verification: 물그릇 클릭 후 문지르기 전 스펀지 위치를 확인한다.
+    suggested_fix: 들고 있는 동안은 물그릇 위로 들어 올린 자리에 둔다.
+    resolution: 적용 완료 — holdingSponge() 동안 y를 0.26 올린다.
+
+  - severity: low
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: work-readout 패널
+    description: >-
+      수분 계기 아래에 스펀지 계기를 하나 더 붙여 우측 패널이 넘치고 MAKING PROCESS 패널에 잘렸다.
+    impact: 스펀지 잔량이 화면에서 읽히지 않는다.
+    verification: 1440×900에서 LIVE MATERIAL 패널의 모든 행이 잘리지 않는지 확인한다.
+    suggested_fix: 스펀지는 한 줄 수치로 두고 잔량은 수분계 아래 얇은 띠로 보여준다.
+    resolution: 적용 완료 — dimension-row + sponge-track 띠로 바꿨다.

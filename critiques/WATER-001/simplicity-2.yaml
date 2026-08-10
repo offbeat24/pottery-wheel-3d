@@ -1,0 +1,6 @@
+critic: simplicity
+task_id: WATER-001
+iteration: 2
+verdict: pass
+no_issues_found: true
+findings: []

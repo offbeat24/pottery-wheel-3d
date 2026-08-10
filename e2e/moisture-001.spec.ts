@@ -20,6 +20,22 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
     if (!box) throw new Error('점토 캔버스의 위치를 찾을 수 없습니다.')
     await page.mouse.move(box.x + box.width * 0.67, box.y + box.height * 0.43)
   }
+  const moveToClaySurface = async () => {
+    const box = await canvas.boundingBox()
+    if (!box) throw new Error('점토 캔버스의 위치를 찾을 수 없습니다.')
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.52)
+  }
+  const wetClayAndPutSpongeDown = async () => {
+    await page.getByTestId('water-action').click()
+    await expect(game).toHaveAttribute('data-sponge', '100')
+    await moveToClaySurface()
+    await page.mouse.down({ button: 'left' })
+    await advanceFrames(18)
+    await page.mouse.up({ button: 'left' })
+    await page.mouse.down({ button: 'right' })
+    await page.mouse.up({ button: 'right' })
+    await expect(game).toHaveAttribute('data-sponge', '0')
+  }
 
   await expect(game).toHaveAttribute('data-moisture-state', 'balanced')
   const balancedRadiusBefore = await readMaxRadius()
@@ -35,8 +51,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
 
   await page.getByTestId('restart-action').click()
   await page.getByTestId('restart-action').click()
-  await page.getByTestId('water-action').click()
-  await page.clock.runFor(50)
+  await wetClayAndPutSpongeDown()
   await expect(game).toHaveAttribute('data-moisture-state', 'wet')
   await expect(moistureTrack).toHaveAttribute('aria-valuetext', /과습/)
   await expect(page.locator('#speed-effect')).toContainText('감속 후 기다리기')
@@ -46,8 +61,6 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
 
   await page.keyboard.down('Space')
   await advanceFrames(8)
-  await page.getByTestId('water-action').click()
-  await advanceFrames(1)
   const collapseHeightBefore = await readHeight()
   await expect(game).toHaveAttribute('data-moisture-state', 'wet')
   await expect(game).toHaveAttribute('data-material-motion', 'true')
@@ -97,8 +110,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
 
   await page.mouse.up({ button: 'right' })
   await page.keyboard.up('Space')
-  await page.getByTestId('water-action').click()
-  await advanceFrames(5)
+  await wetClayAndPutSpongeDown()
   await expect(game).toHaveAttribute('data-moisture-state', 'balanced')
   await expect(page.locator('#pressure-value')).toHaveText('안정')
 })
@@ -109,6 +121,13 @@ test('동작 줄이기에서는 과습 반복 흔들림을 끈다', async ({ pag
   await page.goto('/')
   await page.getByTestId('start-action').click()
   await page.getByTestId('water-action').click()
+  const canvas = page.getByTestId('game-surface').locator('canvas')
+  const box = await canvas.boundingBox()
+  if (!box) throw new Error('점토 캔버스의 위치를 찾을 수 없습니다.')
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.52)
+  await page.mouse.down({ button: 'left' })
+  for (let frame = 0; frame < 18; frame += 1) await page.clock.fastForward(100)
+  await page.mouse.up({ button: 'left' })
   await page.keyboard.down('Space')
   for (let frame = 0; frame < 8; frame += 1) await page.clock.fastForward(100)
   await expect(page.getByTestId('game-root')).toHaveAttribute('data-material-motion', 'false')

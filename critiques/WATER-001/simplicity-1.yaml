@@ -1,0 +1,46 @@
+critic: simplicity
+task_id: WATER-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: pointerRay / updateSelection / paintGlazeFromPointer
+    description: >-
+      물그릇·점토 판정을 위해 pointerRay 헬퍼를 새로 만들었는데, 같은 NDC 계산이 기존
+      updateSelection과 paintGlazeFromPointer에 그대로 남아 세 곳으로 늘어났다.
+    impact: 좌표 변환 규칙이 바뀌면 세 곳을 따로 고쳐야 하고 한 곳을 빠뜨리기 쉽다.
+    verification: 화면 좌표 → NDC 변환이 몇 곳에 있는지 센다.
+    suggested_fix: pointerRay 하나로 모으고, 화면 사각형이 필요한 쪽에는 그 값을 돌려준다.
+    resolution: 적용 완료 — 세 곳이 pointerRay 한 곳으로 모였다(DOMRect 반환).
+
+  - severity: low
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: updateSpongePosition
+    description: >-
+      매 프레임 Vector3를 세 개씩 새로 만들어 렌더 루프에서 쓰레기를 만든다.
+    impact: 렌더 루프의 불필요한 할당이며, 같은 파일의 다른 루프 코드와 방식도 다르다.
+    verification: 함수 안의 new THREE.Vector3 호출 수를 센다.
+    suggested_fix: 모듈 수준 스크래치 벡터를 재사용한다.
+    resolution: 적용 완료 — spongeTarget/spongeToward 두 개를 재사용한다.
+
+  - severity: low
+    confidence: speculative
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: spongeWater / rubbingClay / spongeDragging
+    description: >-
+      상태 변수 세 개가 겹쳐 보인다. rubbingClay를 spongeDragging과 합칠 수 있는지 검토했다.
+    impact: 없음.
+    verification: 두 값의 의미가 다른 시점(점토를 벗어난 채 드래그 중)이 존재하는지 확인한다.
+    suggested_fix: 유지.
+    resolution: >-
+      합치지 않는다 — spongeDragging은 "점토에서 시작한 드래그", rubbingClay는 "지금 점토에
+      닿아 있음"으로, 드래그 중 점토를 벗어났다 다시 닿는 경우에 서로 달라진다.
