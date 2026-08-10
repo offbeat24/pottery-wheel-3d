@@ -1,0 +1,73 @@
+{
+  "task_id": "SCORING-001",
+  "summary_of_changes": "형태 총점의 2.4제곱 판매가 곡선, 굽기를 곡선 안에 반영하는 0.5~1 배수, 흙 접촉 시간으로 제한되는 0.7~1.35 작업 속도 배수, HUD 작업 시간과 결과 화면의 굽기 전 추정가·최종 판매가를 추가했다.",
+  "why": "작품의 형태, 가마 결과, 작업 숙련이 서로 다른 방식으로 판매가에 반영되어 플레이어가 공정 판단의 값을 즉시 이해할 수 있게 하기 위해서다.",
+  "files_changed": [
+    "DESIGN.md",
+    "FEATURE_BACKLOG.md",
+    "e2e/quality.spec.ts",
+    "src/game/scoring.ts",
+    "src/main.ts",
+    "src/styles.css",
+    "tests/scoring.test.ts",
+    "tasks/SCORING-001.md",
+    "critiques/SCORING-001/design-1.yaml",
+    "critiques/SCORING-001/test-1.yaml",
+    "critiques/SCORING-001/test-2.yaml",
+    "critiques/SCORING-001/test-3.yaml",
+    "critiques/SCORING-001/test-4.yaml",
+    "critiques/SCORING-001/simplicity-1.yaml",
+    "critiques/SCORING-001/simplicity-2.yaml",
+    "records/SCORING-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "auto" },
+    { "role": "test-critic", "alias": "auto" },
+    { "role": "simplicity-critic", "alias": "auto" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "bass doctor", "level": 1, "status": "pass" },
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "unit (33 tests)", "level": 2, "status": "pass" },
+      { "name": "browser full craft loop and solid-form finish at 1440x900 (2 tests)", "level": 2, "status": "pass" },
+      { "name": "production build", "level": 2, "status": "pass" },
+      { "name": "npm run verify", "level": 2, "status": "pass" }
+    ],
+    "not_verified": []
+  },
+  "critic_findings": {
+    "total": 9,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/SCORING-001"
+  },
+  "known_limitations": [
+    "현재 플레이 루프에는 선반·상점·공방 업그레이드가 없어 판매가는 결과 화면의 평가액으로만 표시되고 저장되지 않는다.",
+    "원본 정책 프롬프트의 예시 금액 일부가 명시 공식과 모순되어 저장소 테스트와 task는 공식 계산값을 원천으로 삼는다.",
+    "Vite build는 Three.js 메인 청크가 500kB를 넘는다는 기존 성능 경고를 남긴다."
+  ],
+  "out_of_scope_findings": [
+    "선반 저장과 실제 판매, localStorage 누적 수익, 상점 지출, 공방 가격 배수",
+    "도구 구매와 기법 주문 및 새김 기록"
+  ],
+  "docs_updated": {
+    "needed": true,
+    "updated": ["DESIGN.md", "FEATURE_BACKLOG.md", "tasks/SCORING-001.md"]
+  },
+  "lessons": {
+    "recorded": true,
+    "candidates": [
+      "실시간 타이머 E2E는 재시작 직후의 순간 0을 auto-wait로 비교하지 않고 같은 이벤트 턴의 동기 상태나 이전 세션 대비 감소로 검증한다.",
+      "정책 문서의 예시와 공식이 다르면 공식 계산을 테스트로 고정하고 불일치를 기록한다."
+    ]
+  },
+  "rollback": {
+    "method": "SCORING-001에서 추가한 가격 함수, 작업 시간 상태, 결과 금액 UI, 테스트와 문서를 한 변경 단위로 되돌린다."
+  },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900, WebGL2",
+    "notes": "결과 모달에서 최종 판매가가 1차 정보로 보이고 굽기 전 추정가, 형태 총점, 작업 시간과 속도 배수가 겹침 없이 구분되는지 실제 렌더링으로 확인했다. 중앙 작품과 기존 제작 HUD의 시각 위계는 유지되며 콘솔 오류는 0건이었다."
+  }
+}

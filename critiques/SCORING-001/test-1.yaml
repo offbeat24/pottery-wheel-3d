@@ -1,0 +1,96 @@
+critic: test
+task_id: SCORING-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 125-130
+    description: >-
+      결과 화면 검증은 작업 속도 문구의 존재, 임의 숫자 형식의 최종 판매가, 굽기 전 추정
+      라벨만 확인한다. 표시된 두 금액을 형태 총점·소성 품질·작업 속도와 대조하지 않고
+      서로 다른지도 확인하지 않는다. 따라서 src/main.ts의 estimate와 finalPrice를 서로
+      바꾸거나, 둘 다 같은 상수 또는 굽기 품질을 무시한 금액으로 렌더해도 현재 E2E는
+      통과할 수 있다. 순수 함수 unit 테스트는 이 UI 연결을 보완하지 않는다.
+    impact: >-
+      굽기 품질은 곡선 안에, 작업 속도는 곡선 밖에 적용하고 굽기 전 추정가와 최종
+      판매가를 명확히 구분한다는 핵심 정책이 실제 결과 화면에서 회귀해도 탐지되지 않는다.
+    verification: >-
+      src/main.ts의 result-price와 result-price-note 할당을 서로 교환하거나 같은 금액으로
+      고정해도 e2e/quality.spec.ts의 세 assertion이 모두 만족되는지 대조한다.
+    suggested_fix: >-
+      E2E에서 노출된 형태 총점·소성 품질·작업 시간·속도 배수를 읽어 예상 금액을 계산하고
+      두 표시값과 대조한다. 현재처럼 낮은 소성 품질을 만드는 경로에서는 최종 판매가가
+      굽기 전 추정가보다 낮은지도 명시적으로 확인한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 23-47, 128-130
+    description: >-
+      빠른 작업 보너스의 흙 접촉 자격을 통합 검증하지 않는다. E2E는 짧게 성형하지만 결과의
+      배수가 어떤 값인지, 실제 흙 접촉이 8초 미만이면 보너스가 비례 축소되는지 확인하지
+      않는다. tests/scoring.test.ts도 paceMultiplier에 이미 계산된 touchedSeconds를 직접
+      넘길 뿐 실제 포인터 입력이 접촉 시간으로 집계되는 경로는 거치지 않는다. 모든 플레이
+      시간을 접촉 시간으로 세거나 캔버스 밖 버튼 누름을 접촉으로 세어도 테스트는 통과한다.
+    impact: >-
+      작업은 빨랐지만 흙을 충분히 만지지 않은 플레이가 최대 1.35 보너스를 받거나, 반대로
+      실제 접촉이 누락되어도 수용 조건 위반을 발견할 수 없다.
+    verification: >-
+      src/main.ts의 touchedWorkSeconds 증가 조건을 currentAction과 무관하게 만들거나 항상 8초로
+      설정해도 unit과 E2E assertion이 실패하지 않는지 확인한다.
+    suggested_fix: >-
+      같은 짧은 총 작업 시간에 대해 무접촉, 약 4초 접촉, 8초 이상 접촉의 세 경로를 만들고
+      결과 배수가 각각 1, 중간값, 최대 1.35가 되는지 비교한다. 점토를 벗어난 포인터 입력은
+      접촉 시간에 포함되지 않는 실패 경로도 추가한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 146-153
+    description: >-
+      작업 시간 수용 조건 중 retry 직후 0초만 검증한다. 제작 중 시간이 증가하는지, 결과와
+      3D 전체 보기에서 멈추는지, 상단 다시 시작과 다음 주문에서도 초기화되는지는 검사하지
+      않는다. 타이머가 플레이 내내 0으로 보이다 결과 직전에 임의 값을 표시하거나 결과
+      화면에서도 계속 증가하는 구현도 현재 assertion을 만족할 수 있다.
+    impact: >-
+      판매가의 작업 속도 입력이 실제 제작 시간과 어긋나고 결과 확인 중 가격 기준 시간이
+      변하는 회귀가 발생해도 필수 lifecycle 요구사항을 보장하지 못한다.
+    verification: >-
+      E2E에 작업 중 work-time-value의 증가 assertion과 결과 진입 후 안정성 assertion이 없고,
+      next-button을 한 번도 누르지 않으며 restart 뒤에는 시간 대신 RPM과 상태만 확인하는지
+      대조한다.
+    suggested_fix: >-
+      시작 후 HUD 시간이 0초보다 커지는지 확인하고 결과 및 result-view에서 일정 시간 뒤에도
+      같은지 검증한다. retry, 확인형 다시 시작, next-button 각각 뒤에 0초와 새 증가를 독립
+      확인한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/scoring.test.ts
+      location: lines 25-42
+    description: >-
+      공식의 대표값은 고정했지만 명시된 범위와 8초 상한의 경계를 닫지 않는다. paceMultiplier는
+      90초의 0.75만 검사해 느린 작업이 0.7 아래로 내려가지 않는지 확인하지 않고, 접촉 시간이
+      8초를 초과해도 보너스가 더 커지지 않는지도 검사하지 않는다. firingMultiplier 역시
+      20과 100만 있어 0.5 하한과 1 상한을 벗어난 입력에서 clamp되는 실패 경로가 비어 있다.
+    impact: >-
+      작업 속도 배수가 0.7~1.35를 벗어나거나 8초 이후에도 증가하고, 비정상 소성 품질이
+      판매가를 허용 범위 밖으로 밀어도 현재 unit 테스트가 통과할 수 있다.
+    verification: >-
+      120초 작업의 pace가 0.7 미만이 되거나 touchedSeconds 9 이상에서 1.35를 넘도록 구현을
+      바꿔도 현재 네 pace assertion은 유지되는지 확인한다. firing 품질의 음수와 100 초과도
+      현재 입력 집합에 없는지 대조한다.
+    suggested_fix: >-
+      elapsedSeconds를 0, 15, 60, 90, 120과 매우 큰 값으로, touchedSeconds를 음수, 0, 4, 8,
+      9로 표 기반 검증한다. firing은 음수, 0, 50, 100, 101을 추가하고 각 출력 및 최종
+      판매가가 하한·상한을 지키는지 확인한다.

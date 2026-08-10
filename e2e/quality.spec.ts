@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('core pottery capability works at 1440×900', async ({ page }, testInfo) => {
-  test.setTimeout(150_000)
+  test.setTimeout(240_000)
 
   const browserErrors: string[] = []
   page.on('console', (message) => {
@@ -30,6 +30,7 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   await page.waitForTimeout(650)
   await expect.poll(async () => Number(await page.locator('#rpm-value').textContent())).toBeGreaterThan(30)
   await expect(page.getByTestId('game-status')).not.toHaveText('시점 조절')
+  expect(Number(await game.getAttribute('data-touched-work-seconds'))).toBe(0)
 
   const canvasBox = await canvas.boundingBox()
   expect(canvasBox).not.toBeNull()
@@ -44,6 +45,15 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   await page.waitForTimeout(220)
   await page.mouse.up({ button: 'left' })
   await expect.poll(async () => Number(await game.getAttribute('data-opening'))).toBeLessThan(enlargedOpening)
+  const touchedBeforeHold = Number(await game.getAttribute('data-touched-work-seconds'))
+  await page.mouse.down({ button: 'right' })
+  const touchHoldStartedAt = Date.now()
+  await page.waitForTimeout(500)
+  await page.mouse.up({ button: 'right' })
+  const touchHoldSeconds = (Date.now() - touchHoldStartedAt) / 1000
+  const controlledTouchSeconds = Number(await game.getAttribute('data-touched-work-seconds')) - touchedBeforeHold
+  expect(controlledTouchSeconds).toBeGreaterThan(touchHoldSeconds * 0.7)
+  expect(controlledTouchSeconds).toBeLessThan(touchHoldSeconds * 1.4)
   await page.keyboard.up('Space')
 
   const renderHealth = await canvas.evaluate(async (element) => {
@@ -125,6 +135,27 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   await expect(game).toHaveAttribute('data-game-state', 'result')
   await expect(page.locator('#result-modal')).toBeVisible()
   await expect(page.locator('#result-finish')).toContainText('900°C')
+  await expect(page.locator('#result-eyebrow')).toContainText('작업 속도 ×')
+  await expect(page.locator('#result-price')).toHaveText(/^[\d,]+원$/)
+  await expect(page.locator('#result-price-note')).toContainText('굽기 전 추정')
+  const shapeScore = Number(await game.getAttribute('data-shape-score'))
+  const firingMultiplier = Number(await game.getAttribute('data-firing-multiplier'))
+  const paceMultiplier = Number(await game.getAttribute('data-pace-multiplier'))
+  const elapsedWorkSeconds = Number(await game.getAttribute('data-elapsed-work-seconds'))
+  const touchedWorkSeconds = Number(await game.getAttribute('data-touched-work-seconds'))
+  const rawPace = Math.max(0.7, Math.min(1.35, 1 + (60 - elapsedWorkSeconds) / 60 * 0.5))
+  const expectedPace = rawPace > 1 ? 1 + (rawPace - 1) * Math.min(1, touchedWorkSeconds / 8) : rawPace
+  const expectedPrice = (firing: number) => Math.round((1000 + 29000 * (shapeScore * firing / 100) ** 2.4) * paceMultiplier / 100) * 100
+  expect(touchedWorkSeconds).toBeGreaterThan(0)
+  expect(touchedWorkSeconds).toBeLessThan(elapsedWorkSeconds)
+  expect(firingMultiplier).toBeLessThan(1)
+  expect(expectedPrice(firingMultiplier)).toBeLessThan(expectedPrice(1))
+  expect(paceMultiplier).toBeCloseTo(expectedPace)
+  await expect(page.locator('#result-price')).toHaveText(`${expectedPrice(firingMultiplier).toLocaleString('ko-KR')}원`)
+  await expect(page.locator('#result-price-note')).toHaveText(`굽기 전 추정 ${expectedPrice(1).toLocaleString('ko-KR')}원`)
+  const completedWorkTime = await page.locator('#work-time-value').textContent()
+  await page.waitForTimeout(1_100)
+  await expect(page.locator('#work-time-value')).toHaveText(completedWorkTime!)
   await testInfo.attach('fired-piece-1440x900', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -140,10 +171,16 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   })
   await page.locator('#result-summary-button').click()
 
-  await page.locator('#retry-button').click()
-
+  await page.locator('#next-button').click()
+  const nextOrderElapsed = Number(await game.getAttribute('data-elapsed-work-seconds'))
+  expect(nextOrderElapsed).toBeLessThan(elapsedWorkSeconds)
+  await expect.poll(async () => Number(await game.getAttribute('data-elapsed-work-seconds'))).toBeGreaterThan(nextOrderElapsed)
   await page.getByTestId('restart-action').click()
-  await page.getByTestId('restart-action').click()
+  const restartedElapsed = await page.getByTestId('restart-action').evaluate((button) => {
+    (button as HTMLButtonElement).click()
+    return document.querySelector<HTMLElement>('[data-testid="game-root"]')?.dataset.elapsedWorkSeconds
+  })
+  expect(restartedElapsed).toBe('0')
   await expect(page.locator('#rpm-value')).toHaveText('0')
   await expect(page.getByTestId('game-status')).toHaveText('시점 조절')
   await expect(game).toHaveAttribute('data-game-state', 'playing')

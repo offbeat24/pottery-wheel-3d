@@ -4,7 +4,7 @@
 
 ## 다음 추천 순서
 
-1. [SCORING-POLICY — 점수·판매가 정책](/Users/okestro/Downloads/SCORING-POLICY.prompt.md)
+1. [SCORING-001 — 점수·판매가 정책](tasks/SCORING-001.md)
 2. [WATER-001 — 물그릇과 스펀지 직접 적시기](tasks/WATER-001.md)
 3. [MOISTURE-001 — 과습과 과건조 물성](tasks/MOISTURE-001.md)
 4. [WHEEL-002 — 물레 속도 물성 체감 강화](tasks/WHEEL-002.md)
