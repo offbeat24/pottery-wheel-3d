@@ -19,7 +19,7 @@ import {
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
 import { ORDERS } from './game/orders'
-import { scoreClay } from './game/scoring'
+import { firingMultiplier, paceMultiplier, scoreClay, sellPrice } from './game/scoring'
 import {
   GLAZES,
   LEATHER_HARD_MOISTURE,
@@ -65,6 +65,7 @@ app.innerHTML = `
       <div class="dimension-row"><span>최대 폭</span><strong id="width-value">19.7 cm</strong></div>
       <div class="dimension-row"><span>최소 벽</span><strong id="wall-value">—</strong></div>
       <div class="dimension-row"><span>흙 총량</span><strong id="mass-value">1,200 g</strong></div>
+      <div class="dimension-row"><span>작업 시간</span><strong id="work-time-value">0초</strong></div>
       <div class="material-meter"><div><span>수분</span><strong id="moisture-value">82%</strong></div><div class="material-track"><i id="moisture-fill"></i></div></div>
     </aside>
     <aside class="craft-panel" aria-label="제작 과정" data-testid="craft-panel">
@@ -151,7 +152,10 @@ app.innerHTML = `
       <div class="result-card">
         <div class="result-head">
           <div><p class="eyebrow" id="result-eyebrow">작업 결과</p><h2 id="result-title">손끝이 만든 좋은 곡선이에요.</h2></div>
-          <div class="total-score"><strong id="total-score">84</strong><span>100점 만점</span></div>
+          <div class="result-stats">
+            <div class="result-price"><span>최종 판매가</span><strong id="result-price">0원</strong><small id="result-price-note">굽기 전 추정 0원</small></div>
+            <div class="total-score"><strong id="total-score">84</strong><span>형태 총점</span></div>
+          </div>
         </div>
         <div class="result-body">
           <div><div class="comparison" id="comparison"></div><div class="legend"><span><i></i>완성품</span><span><i class="target-key"></i>주문 윤곽</span></div></div>
@@ -182,6 +186,7 @@ const heightValue = getElement<HTMLElement>('#height-value')
 const widthValue = getElement<HTMLElement>('#width-value')
 const wallValue = getElement<HTMLElement>('#wall-value')
 const massValue = getElement<HTMLElement>('#mass-value')
+const workTimeValue = getElement<HTMLElement>('#work-time-value')
 const moistureValue = getElement<HTMLElement>('#moisture-value')
 const moistureFill = getElement<HTMLElement>('#moisture-fill')
 const speedFill = getElement<HTMLElement>('#speed-fill')
@@ -317,6 +322,8 @@ let centerHover = false
 let lastMaterialMoisture = craft.moisture
 let dryingActive = false
 let dryingStartMoisture = craft.moisture
+let elapsedWorkSeconds = 0
+let touchedWorkSeconds = 0
 const attachedLumpMeshes: THREE.Mesh[] = []
 
 interface HandleShape {
@@ -855,6 +862,8 @@ function updateHud(): void {
   gameRoot.dataset.glazeCoverage = String(Math.round(craft.glazeCoverage * 100))
   gameRoot.dataset.dryingActive = String(dryingActive)
   gameRoot.dataset.clayColor = clayMaterial.color.getHexString()
+  gameRoot.dataset.elapsedWorkSeconds = String(elapsedWorkSeconds)
+  gameRoot.dataset.touchedWorkSeconds = String(touchedWorkSeconds)
   ghostMesh.visible = craft.stage !== 'fired'
   rpmValue.textContent = String(Math.round(wheelState.speed * 120))
   speedFill.style.width = `${Math.round(wheelState.speed * 100)}%`
@@ -862,6 +871,7 @@ function updateHud(): void {
   widthValue.textContent = `${(maxRadius * 24).toFixed(1)} cm`
   wallValue.textContent = clay.opening < 0.2 ? '막힌 덩이' : `${(minimumWallThickness(clay) * 12).toFixed(1)} cm`
   massValue.textContent = `${craft.clayMass.toLocaleString('ko-KR')} g`
+  workTimeValue.textContent = formatDuration(elapsedWorkSeconds)
   moistureValue.textContent = `${Math.round(craft.moisture)}%`
   moistureFill.style.width = `${Math.round(craft.moisture)}%`
   moistureFill.classList.toggle('is-dry', craft.moisture < 28)
@@ -998,6 +1008,13 @@ function showToast(message: string): void {
   toastTimer = window.setTimeout(() => toast.classList.remove('show'), 1500)
 }
 
+function formatDuration(seconds: number): string {
+  const rounded = Math.floor(Math.max(0, seconds))
+  const minutes = Math.floor(rounded / 60)
+  const remainder = rounded % 60
+  return minutes > 0 ? `${minutes}분 ${remainder}초` : `${remainder}초`
+}
+
 function resetClay(): void {
   collapseAnimation = null
   clayMesh.rotation.set(0, 0, 0)
@@ -1007,6 +1024,10 @@ function resetClay(): void {
   lastMaterialMoisture = craft.moisture
   dryingActive = false
   dryingStartMoisture = craft.moisture
+  elapsedWorkSeconds = 0
+  touchedWorkSeconds = 0
+  gameRoot.dataset.elapsedWorkSeconds = '0'
+  gameRoot.dataset.touchedWorkSeconds = '0'
   replaceMeshGeometry(clayMesh, clay)
   removeHandle()
   clearClayLumps()
@@ -1058,16 +1079,24 @@ function requestRestart(): void {
 }
 
 function showResult(score: ScoreBreakdown): void {
-  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · 작업 결과`
   const firing = craft.firingQuality ?? 0
-  const finalScore = Math.round(score.total * 0.78 + firing * 0.22)
-  getElement<HTMLElement>('#result-title').textContent = finalScore >= 90
+  const firingFactor = firingMultiplier(firing)
+  const pace = paceMultiplier(elapsedWorkSeconds, touchedWorkSeconds)
+  const finalQuality = Math.round(score.total * firingFactor)
+  const estimate = sellPrice(score.total, 1, pace)
+  const finalPrice = sellPrice(score.total, firingFactor, pace)
+  gameRoot.dataset.shapeScore = String(score.total)
+  gameRoot.dataset.firingMultiplier = String(firingFactor)
+  gameRoot.dataset.paceMultiplier = String(pace)
+  getElement<HTMLElement>('#result-title').textContent = finalQuality >= 90
     ? '주문서보다 더 아름다운 곡선이에요.'
-    : finalScore >= 72
+    : finalQuality >= 72
       ? '손끝이 만든 좋은 곡선이에요.'
       : '흙과 조금 더 이야기를 나눠볼까요?'
-  getElement<HTMLElement>('#total-score').textContent = String(finalScore)
-  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · ${craft.kilnTemperature}°C 소성 결과`
+  getElement<HTMLElement>('#total-score').textContent = String(score.total)
+  getElement<HTMLElement>('#result-price').textContent = `${finalPrice.toLocaleString('ko-KR')}원`
+  getElement<HTMLElement>('#result-price-note').textContent = `굽기 전 추정 ${estimate.toLocaleString('ko-KR')}원`
+  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · ${formatDuration(elapsedWorkSeconds)} · 작업 속도 ×${pace.toFixed(2)}`
   const comparison = getElement<HTMLElement>('#comparison')
   comparison.innerHTML = silhouetteSvg(
     currentOrder.outerRadii,
@@ -1388,6 +1417,10 @@ function animate(): void {
   materialHintCooldown = Math.max(0, materialHintCooldown - deltaSeconds)
   wheelState = updateWheel(wheelState, wheelDeltaSeconds)
   if (started) {
+    if (gameRoot.dataset.gameState === 'playing') {
+      elapsedWorkSeconds += elapsedSeconds
+      if (craft.stage === 'forming' && wheelState.mode === 'shaping' && currentAction() !== 'idle') touchedWorkSeconds += elapsedSeconds
+    }
     craft = updateMoisture(craft, deltaSeconds, wheelState.mode === 'shaping' && currentAction() !== 'idle', wheelState.speed)
     const stageBeforeDrying = craft.stage
     craft = updateDrying(craft, wheelDeltaSeconds, dryingActive)

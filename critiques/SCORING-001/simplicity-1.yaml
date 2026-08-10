@@ -1,0 +1,25 @@
+critic: simplicity
+task_id: SCORING-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: low
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: src/game/scoring.ts
+      location: lines 21-25 (sellPrice workshop parameter and clamp)
+    description: >-
+      sellPrice가 현재 호출 경로에 없는 workshop 배수를 기본 인자와 1~2 clamp로 미리
+      제공한다. tasks/SCORING-001.md는 공방 업그레이드를 명시적으로 제외하며 실제 UI
+      호출도 이 인자를 전달하지 않지만, 단위 테스트만 가상의 2배 공방 값을 고정한다.
+    impact: >-
+      이번 판매가 정책의 공개 함수 계약과 기대 최대값에 아직 없는 업그레이드 규칙이
+      섞인다. 나중에 공방 경제를 설계할 때 이 선제 규칙을 호환 계약처럼 유지하거나
+      다시 걷어내야 하고, 현재 독자는 사용되지 않는 네 번째 배수의 출처를 추적해야 한다.
+    verification: >-
+      sellPrice의 모든 프로덕션 호출을 검색하면 score, firing, pace까지만 전달하며 네 번째
+      인자는 tests/scoring.test.ts의 최대값 사례에서만 2로 전달되는지 확인한다.
+    suggested_fix: >-
+      workshop 인자와 clamp 곱셈을 제거하고 현재 최대 속도 배수까지만 테스트한다. 공방
+      업그레이드가 실제 백로그 범위가 될 때 경제 규칙과 UI, 테스트를 함께 추가한다.

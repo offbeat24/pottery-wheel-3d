@@ -1,0 +1,73 @@
+critic: test
+task_id: SCORING-001
+iteration: 2
+no_issues_found: false
+findings:
+  - severity: high
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: previous revision lines 161-162; npm run test:e2e
+    description: >-
+      최신 보강 직후의 필수 E2E를 실제 실행했을 때 core 시나리오가 next-button 뒤
+      work-time-value를 정확히 0초로 기다리는 assertion에서 실패했다. 새 주문은 reset 직후
+      즉시 playing으로 돌아가 시간이 다시 흐르므로 Playwright가 관찰한 값은 2초에서 8초로
+      증가했고, 순간값 0초를 기다리는 auto-retry는 구조적으로 성공할 수 없었다. 첫 실행은
+      1 failed/1 passed로 종료됐다.
+    impact: >-
+      정상 구현을 실패시키는 테스트 때문에 npm run verify와 pre-review 필수 근거가 red이며,
+      느린 렌더 환경일수록 재현되는 false negative가 작업 완료를 막는다.
+    verification: >-
+      npm run test:e2e를 실행한 결과 e2e/quality.spec.ts의 next 초기화 assertion에서
+      Expected 0초, Received 8초로 실패했고 전체 결과는 1 failed, 1 passed였다.
+    suggested_fix: >-
+      즉시 다시 흐르는 표시의 순간 0초를 요구하지 말고 완료 시각보다 새 주문 시각이 작아진
+      뒤 다시 증가하는지를 검증한다. reset 직후 값을 동기적으로 노출하는 카운터가 있다면
+      그 값을 비교하고, 표시 문자열의 auto-retry에는 의존하지 않는다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 131-143
+    description: >-
+      판매가 공식은 독립적으로 다시 계산하지만 소성 배수 자체는 구현이 노출한
+      data-firing-multiplier를 그대로 신뢰한다. showResult가 실제 900°C 소성 품질 대신 항상
+      firingMultiplier(100)을 사용하면 배수는 1, 굽기 전 추정가와 최종 판매가는 같아지지만
+      두 DOM 값은 노출된 1로 계산한 기대값과 일치해 모든 assertion이 통과한다.
+    impact: >-
+      굽기 품질을 점수와 곱해 곡선 안에 적용한다는 핵심 정책이 UI 연결에서 제거되어도
+      결과 화면 통합 테스트가 탐지하지 못한다.
+    verification: >-
+      src/main.ts의 showResult에서 firingFactor 입력을 firing 대신 100으로 고정했을 때 unit의
+      firingMultiplier 경계 테스트는 유지되고 E2E의 expectedPrice도 노출값 1을 사용해 같은
+      가격을 기대하는지 대조한다.
+    suggested_fix: >-
+      현재 900°C 청자 경로에서 data-firing-multiplier가 1보다 작고 최종 판매가가 굽기 전
+      추정가보다 낮은지 확인한다. 더 엄밀하게는 결과의 소성 점수 텍스트에서 독립 배수를
+      계산해 data 속성 및 가격과 함께 대조한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 29-47, 134-141
+    description: >-
+      elapsed와 touched를 분리해 노출하고 touched가 0보다 크며 elapsed보다 작은 것은
+      확인하지만, 실제 점토 접촉 구간과 touched 값의 대응은 검증하지 않는다. 모든 playing
+      시간을 임의 비율로 touched에 더하거나 점토를 벗어난 위치의 버튼 입력을 접촉으로
+      집계해도 0 < touched < elapsed와 그 노출값으로 다시 계산한 pace 공식은 모두 만족한다.
+    impact: >-
+      흙을 직접 만진 시간이 8초까지 비례해야 한다는 자격 조건이 포인터 활동 또는 임의
+      플레이 시간으로 대체되어 빠른 작업 보너스가 잘못 지급돼도 탐지되지 않는다.
+    verification: >-
+      src/main.ts의 touchedWorkSeconds를 실제 currentAction 대신 elapsedSeconds * 0.5처럼
+      누적해도 현재 범위 및 expectedPace assertion이 통과 가능한지 대조한다. 점토 밖 입력의
+      음성 경로가 E2E에 없는지도 확인한다.
+    suggested_fix: >-
+      포인터 down/up 시각으로 실제 접촉 구간을 기록해 노출된 touched와 허용 오차 안에서
+      대조하고, 같은 shaping 상태에서 점토 밖을 누른 구간에는 touched가 증가하지 않는지
+      별도 확인한다.

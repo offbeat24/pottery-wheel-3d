@@ -1,0 +1,27 @@
+critic: test
+task_id: SCORING-001
+iteration: 3
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 29-48, 135-144
+    description: >-
+      새 assertion은 성형 포인터 입력 전 touched가 0이고 결과에서 0보다 크며 elapsed보다
+      작은 것을 확인해, 모든 플레이 시간을 접촉으로 세는 이전 mutation은 막는다. 그러나
+      실제 포인터 down 구간과 touched 증가량을 대조하지 않아 접촉 중 elapsedSeconds의 절반만
+      누적하는 구현도 세 범위 조건과 노출 touched로 다시 계산한 expectedPace를 모두 만족한다.
+    impact: >-
+      흙 접촉 시간이 8초까지 비례한다는 정책에서 실제 접촉과 다른 속도로 시간이 누적되어
+      빠른 작업 보너스가 과소 또는 과다 지급돼도 통합 테스트가 탐지하지 못한다.
+    verification: >-
+      src/main.ts의 touchedWorkSeconds 증가식을 `elapsedSeconds * 0.5`로 바꿔도 입력 전에는 0,
+      입력 후에는 0 < touched < elapsed이며 E2E expectedPace가 같은 노출 touched를 사용하므로
+      통과 가능한지 대조한다.
+    suggested_fix: >-
+      성형 포인터를 제어된 시간 동안 누르고 전후 data-touched-work-seconds 차이가 실제 hold
+      시간과 허용 오차 안에서 일치하는지 확인한다. 실시간 E2E 오차가 크면 접촉 여부와 delta를
+      받는 작은 순수 누적 함수를 분리해 unit에서 1배 누적과 비접촉 무변화를 고정한다.
