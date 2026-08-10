@@ -1,15 +1,8 @@
-import type { CraftState, GlazeChoice, GlazeId } from './types'
+import type { CraftState } from './types'
+import { MAX_HEIGHT } from './clay'
 
-export const GLAZES: Record<GlazeId, { name: string; color: number; optimalTemperature: number }> = {
-  celadon: { name: '비취 청자', color: 0x7f9d87, optimalTemperature: 1240 },
-  cream: { name: '쌀빛 백유', color: 0xd8c4a0, optimalTemperature: 1180 },
-  iron: { name: '철유 갈색', color: 0x563c32, optimalTemperature: 1260 },
-}
-
-export const LEATHER_HARD_MOISTURE = 18
 export const DRY_MOISTURE_LIMIT = 24
 export const WET_MOISTURE_LIMIT = 88
-const DRYING_RATE_PER_SECOND = 34
 
 export function moistureResponse(moisture: number): {
   state: 'dry' | 'balanced' | 'wet'
@@ -45,20 +38,13 @@ export function moistureResponse(moisture: number): {
 
 export function createInitialCraftState(): CraftState {
   return {
-    stage: 'forming',
     moisture: 82,
     clayMass: 1200,
     reserveLumps: 2,
-    handleAttached: false,
-    glaze: null,
-    glazeCoverage: 0,
-    kilnTemperature: 1220,
-    firingQuality: null,
   }
 }
 
 export function updateMoisture(state: CraftState, deltaSeconds: number, touching: boolean, speed: number): CraftState {
-  if (state.stage !== 'forming') return state
   const workingLoss = touching ? 1.25 + speed * 1.65 : state.moisture > WET_MOISTURE_LIMIT ? 2.5 : 0.18
   return { ...state, moisture: Math.max(0, state.moisture - workingLoss * deltaSeconds) }
 }
@@ -83,7 +69,7 @@ export interface RubResult {
  */
 export function rubWater(state: CraftState, spongeWater: number, deltaSeconds: number): RubResult {
   const remaining = Math.min(SPONGE_CAPACITY, Math.max(0, spongeWater))
-  if (state.stage !== 'forming' || remaining <= 0 || deltaSeconds <= 0) {
+  if (remaining <= 0 || deltaSeconds <= 0) {
     return { state, spongeWater: remaining }
   }
   const transfer = Math.min(remaining, SPONGE_TRANSFER_PER_SECOND * deltaSeconds, 100 - state.moisture)
@@ -91,74 +77,14 @@ export function rubWater(state: CraftState, spongeWater: number, deltaSeconds: n
   return { state: { ...state, moisture: state.moisture + transfer }, spongeWater: remaining - transfer }
 }
 
-export function addReserveClay(state: CraftState): CraftState {
-  if (state.stage !== 'forming' || state.reserveLumps <= 0) return state
+export function addReserveClay(state: CraftState, currentHeight = 0): CraftState {
+  if (state.reserveLumps <= 0 || currentHeight >= MAX_HEIGHT) return state
   return { ...state, clayMass: state.clayMass + 180, reserveLumps: state.reserveLumps - 1, moisture: Math.min(100, state.moisture + 8) }
-}
-
-export function attachHandle(state: CraftState): CraftState {
-  if (state.stage !== 'forming' || state.handleAttached) return state
-  return { ...state, handleAttached: true, clayMass: state.clayMass + 90 }
-}
-
-export function finishForming(state: CraftState): CraftState {
-  if (state.stage !== 'forming') return state
-  return { ...state, stage: 'drying' }
-}
-
-export function updateDrying(state: CraftState, deltaSeconds: number, active: boolean): CraftState {
-  if (state.stage !== 'drying' || !active) return state
-  const moisture = Math.max(LEATHER_HARD_MOISTURE, state.moisture - DRYING_RATE_PER_SECOND * Math.max(0, deltaSeconds))
-  return {
-    ...state,
-    stage: moisture <= LEATHER_HARD_MOISTURE ? 'leather-hard' : 'drying',
-    moisture,
-  }
-}
-
-export function applyGlaze(state: CraftState, glaze: GlazeChoice): CraftState {
-  if (state.stage !== 'leather-hard' && state.stage !== 'glazing') return state
-  return { ...state, stage: 'glazing', glaze, glazeCoverage: glaze === state.glaze ? state.glazeCoverage : 0 }
-}
-
-export function updateGlazeCoverage(state: CraftState, coverage: number): CraftState {
-  if (state.stage !== 'glazing' || state.glaze === 'unglazed' || state.glaze === null) return state
-  return { ...state, glazeCoverage: Math.min(1, Math.max(0, coverage)) }
-}
-
-export function setKilnTemperature(state: CraftState, temperature: number): CraftState {
-  return { ...state, kilnTemperature: Math.round(Math.min(1300, Math.max(900, temperature))) }
-}
-
-export function firePiece(state: CraftState): CraftState {
-  if (state.stage !== 'glazing' || !state.glaze) return state
-  const ideal = state.glaze === 'unglazed' ? 1000 : GLAZES[state.glaze].optimalTemperature
-  const temperaturePenalty = Math.abs(state.kilnTemperature - ideal) * (state.glaze === 'unglazed' ? 0.28 : 0.34)
-  const coveragePenalty = state.glaze === 'unglazed' ? 0 : (1 - state.glazeCoverage) * 48
-  const firingQuality = Math.round(Math.max(20, Math.min(100, 100 - temperaturePenalty - coveragePenalty)))
-  return { ...state, stage: 'fired', moisture: 0, firingQuality }
 }
 
 export function wetClayColor(moisture: number): number {
   const dry = 1 - Math.min(1, Math.max(0, moisture / 82))
   return blendHex(0x9f4f38, 0xd3825d, dry)
-}
-
-export function firedClayColor(temperature: number): number {
-  const t = Math.min(1300, Math.max(900, temperature))
-  if (t <= 1050) return blendHex(0xc77c55, 0xa94f35, (t - 900) / 150)
-  return blendHex(0xa94f35, 0x512a25, (t - 1050) / 250)
-}
-
-export function firedGlazeColor(glaze: GlazeId, temperature: number): number {
-  const ideal = GLAZES[glaze].optimalTemperature
-  const base = GLAZES[glaze].color
-  if (temperature < ideal) {
-    const severity = Math.min(1, (ideal - temperature) / 260)
-    return blendHex(base, glaze === 'cream' ? 0xb9916a : 0x8d7053, severity * 0.72)
-  }
-  const severity = Math.min(1, (temperature - ideal) / 170)
-  return blendHex(base, 0x342724, severity * 0.76)
 }
 
 function blendHex(from: number, to: number, amount: number): number {

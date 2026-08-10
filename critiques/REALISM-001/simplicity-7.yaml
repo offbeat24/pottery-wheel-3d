@@ -1,0 +1,29 @@
+critic: simplicity
+task_id: REALISM-001
+iteration: 7
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: lines 787 and 890-892, with src/styles.css lines 44 and 201-211 and 457
+    description: >-
+      CraftState에서 제작 단계를 삭제했는데도 updateHud가 매 프레임
+      data-craft-stage를 forming으로 덮어쓰고 더 이상 추가되지 않는 is-finishing 클래스를
+      제거한다. CSS에도 절대 참이 될 수 없는 비성형 단계 선택자와 삭제된 유약 도구의
+      glazing 커서, tool/coverage/brush/finish 전용 규칙이 남아 있다. E2E도 이 상수형
+      data-craft-stage를 실제 상태처럼 검증해 잔존 코드를 고정한다.
+    impact: >-
+      제거한 공정의 상태 모델이 DOM과 테스트에 유령 API로 남아 단일 루프를 실제보다
+      복잡하게 보이게 한다. 향후 결과 화면이나 새 성형 도구를 수정할 때 개발자가 이
+      분기와 스타일을 지원 대상이라고 오해하거나 같은 상태를 다시 확장할 가능성이 있다.
+    verification: >-
+      data-craft-stage, is-finishing, glazing, tool-row, coverage-row, brush-guide와
+      finish-swatch의 전체 참조를 검색한다. 런타임에서 craftStage는 forming 외 값이 없고
+      나머지 클래스와 선택자는 현재 마크업에서 생성되지 않는지 확인한다.
+    suggested_fix: >-
+      상수 data-craft-stage 할당, 해당 비성형 CSS 분기, is-finishing 제거 호출과 삭제된
+      유약·마감 전용 CSS를 삭제한다. E2E의 제작 단계 확인은 이미 실제 전이를 표현하는
+      data-game-state의 playing/result 검증만 남긴다.

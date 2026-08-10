@@ -3,7 +3,6 @@ import {
   SPONGE_CAPACITY,
   SPONGE_TRANSFER_PER_SECOND,
   createInitialCraftState,
-  finishForming,
   rubWater,
   shapingEfficiency,
   soakSponge,
@@ -46,13 +45,6 @@ describe('물그릇과 스펀지', () => {
   it('수분이 100%면 더 들어가지 않고 스펀지 물도 낭비되지 않는다', () => {
     const rubbed = rubWater(forming(100), SPONGE_CAPACITY, 1)
     expect(rubbed.state.moisture).toBe(100)
-    expect(rubbed.spongeWater).toBe(SPONGE_CAPACITY)
-  })
-
-  it('성형 단계가 아니면 물을 바를 수 없다', () => {
-    const drying = finishForming(forming(30))
-    const rubbed = rubWater(drying, SPONGE_CAPACITY, 1)
-    expect(rubbed.state).toBe(drying)
     expect(rubbed.spongeWater).toBe(SPONGE_CAPACITY)
   })
 

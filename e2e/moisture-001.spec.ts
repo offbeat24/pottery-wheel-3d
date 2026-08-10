@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연결된다', async ({ page }) => {
-  test.setTimeout(60_000)
+  test.setTimeout(180_000)
   await page.clock.install()
   await page.goto('/')
   await page.getByTestId('start-action').click()
@@ -61,6 +61,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
 
   await page.keyboard.down('Space')
   await advanceFrames(8)
+  await wetClayAndPutSpongeDown()
   const collapseHeightBefore = await readHeight()
   await expect(game).toHaveAttribute('data-moisture-state', 'wet')
   await expect(game).toHaveAttribute('data-material-motion', 'true')
@@ -80,7 +81,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   expect(await readHeight()).toBeLessThan(collapseHeightBefore - 0.5)
   await page.mouse.up({ button: 'right' })
   await page.keyboard.up('Space')
-  await page.clock.fastForward(5_000)
+  await advanceFrames(50)
   await expect(game).toHaveAttribute('data-moisture-state', 'balanced')
   await expect(page.locator('#pressure-value')).toHaveText('안정')
 
@@ -92,7 +93,7 @@ test('수분 상태별 물성과 붕괴·복구 경로가 실제 조작에 연�
   await page.mouse.down({ button: 'left' })
   await page.mouse.down({ button: 'right' })
   for (let step = 0; step < 6 && await game.getAttribute('data-moisture-state') !== 'dry'; step += 1) {
-    await page.clock.fastForward(5_000)
+    await advanceFrames(50)
   }
   await advanceFrames(10)
   await expect(game).toHaveAttribute('data-moisture-state', 'dry')

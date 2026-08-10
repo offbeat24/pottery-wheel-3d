@@ -6,6 +6,8 @@ import {
   MIN_OUTER_RADIUS,
   MIN_WALL_THICKNESS,
   WIDEN_LIMIT_RADIUS,
+  RESERVE_CLAY_HEIGHT,
+  addClayBelow,
   collapseWideSection,
   changeHeight,
   createInitialClay,
@@ -17,6 +19,7 @@ import {
   isWidenLimit,
   minimumWallThickness,
   openCenter,
+  sampleOuterRadius,
 } from '../src/game/clay'
 
 describe('점토 단면 변형', () => {
@@ -54,6 +57,17 @@ describe('점토 단면 변형', () => {
     expect(taller.outerRadii[20]).toBeLessThan(clay.outerRadii[20])
     expect(minimumWallThickness(taller)).toBeLessThan(minimumWallThickness(clay))
     expect(estimateClayVolume(taller)).toBeCloseTo(estimateClayVolume(clay), 2)
+  })
+
+  it('예비 흙은 현재 형태를 위로 유지한 채 아래 높이만 추가한다', () => {
+    const clay = deformRadius(createInitialClay(), 30, 0.16)
+    const extended = addClayBelow(clay)
+
+    expect(extended.height).toBeCloseTo(clay.height + RESERVE_CLAY_HEIGHT)
+    for (const position of [0, 0.25, 0.5, 0.75, 1]) {
+      const shiftedPosition = (RESERVE_CLAY_HEIGHT + clay.height * position) / extended.height
+      expect(sampleOuterRadius(extended, shiftedPosition)).toBeCloseTo(sampleOuterRadius(clay, position), 1)
+    }
   })
 
   it('처음에는 막힌 흙덩이이고 중심을 파면 내부 공간이 열린다', () => {

@@ -1,103 +1,73 @@
 {
   "task_id": "REALISM-001",
-  "summary_of_changes": "구멍을 강제하지 않는 부피 보존 성형, 마우스 중심 구멍 조절, 수분·RPM, 본체 아래 별도 예비 흙덩이, 비율을 조절하는 손잡이, 성형 수분을 보존한 채 색과 표면이 연속 변화하는 시간 압축 건조·가죽경도 전환, 직접 유약 칠하기, 무유약과 온도별 소성 색, 3D 전체 결과 보기까지 이어지는 제작 루프를 추가했다.",
-  "why": "기존 실루엣 맞추기에 재료 보존과 실제 도예 순서를 연결해 손 조작의 판단과 현실감을 높이기 위해서다.",
+  "summary_of_changes": "제작 루프를 직접 성형과 형태 확인으로 단순화하고, 불필요한 공정 상태·UI·계산·테스트와 미래 백로그를 제거했다. 예비 흙은 별도 메시 대신 현재 프로필 아래 높이를 추가한다.",
+  "why": "짧은 세션에서 점토를 직접 빚고 주문 형태를 맞추는 핵심 경험에 집중하기 위해서다.",
   "files_changed": [
     "DESIGN.md",
+    "FEATURE_BACKLOG.md",
     "README.md",
-    "e2e/quality.spec.ts",
     "src/game/clay.ts",
     "src/game/process.ts",
+    "src/game/scoring.ts",
     "src/game/types.ts",
     "src/main.ts",
     "src/styles.css",
     "tests/clay.test.ts",
     "tests/process.test.ts",
+    "tests/scoring.test.ts",
+    "tests/water-001.test.ts",
+    "e2e/moisture-001.spec.ts",
+    "e2e/quality.spec.ts",
+    "playwright.config.ts",
     "tasks/REALISM-001.md",
-    "critiques/REALISM-001/design-1.yaml",
-    "critiques/REALISM-001/design-2.yaml",
-    "critiques/REALISM-001/design-3.yaml",
-    "critiques/REALISM-001/design-4.yaml",
-    "critiques/REALISM-001/design-5.yaml",
-    "critiques/REALISM-001/design-6.yaml",
-    "critiques/REALISM-001/test-1.yaml",
-    "critiques/REALISM-001/test-2.yaml",
-    "critiques/REALISM-001/test-3.yaml",
-    "critiques/REALISM-001/test-4.yaml",
-    "critiques/REALISM-001/test-5.yaml",
-    "critiques/REALISM-001/test-6.yaml",
-    "critiques/REALISM-001/test-7.yaml",
-    "critiques/REALISM-001/simplicity-1.yaml",
-    "critiques/REALISM-001/simplicity-2.yaml",
-    "critiques/REALISM-001/simplicity-3.yaml",
-    "critiques/REALISM-001/simplicity-4.yaml",
-    "critiques/REALISM-001/simplicity-5.yaml",
-    "critiques/REALISM-001/simplicity-6.yaml",
+    "critiques/REALISM-001/design-9.yaml",
+    "critiques/REALISM-001/test-9.yaml",
+    "critiques/REALISM-001/simplicity-8.yaml",
     "records/REALISM-001.json"
   ],
   "models_used": [
-    {
-      "role": "worker",
-      "alias": "auto"
-    },
-    {
-      "role": "design-critic",
-      "alias": "reasoning-high"
-    },
-    {
-      "role": "test-critic",
-      "alias": "reasoning-high"
-    },
-    {
-      "role": "simplicity-critic",
-      "alias": "reasoning-high"
-    }
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "reasoning-high" },
+    { "role": "test-critic", "alias": "reasoning-high" },
+    { "role": "simplicity-critic", "alias": "reasoning-high" }
   ],
   "verification": {
     "evaluations_run": [
       { "name": "bass doctor", "level": 1, "status": "pass" },
       { "name": "typecheck", "level": 1, "status": "pass" },
-      { "name": "unit (30 tests)", "level": 2, "status": "pass" },
-      { "name": "browser full craft loop and solid-form finish at 1440x900 (2 tests)", "level": 2, "status": "pass" },
+      { "name": "unit (45 tests)", "level": 2, "status": "pass" },
+      { "name": "browser shape loop, moisture, water and recovery at 1440x900 (5 tests)", "level": 2, "status": "pass" },
       { "name": "production build", "level": 2, "status": "pass" }
     ],
     "not_verified": []
   },
   "critic_findings": {
-    "total": 8,
-    "open_high_or_medium": 4,
+    "total": 0,
+    "open_high_or_medium": 0,
     "report_path": "critiques/REALISM-001"
   },
   "known_limitations": [
-    "도예 물성은 짧은 브라우저 세션을 위한 근사 모델이며 정밀 유체·열역학 시뮬레이션은 아니다.",
-    "손잡이는 폭·높이·두께·위치를 조절하는 사전 정의된 3D 접합 형태이며 자유 메시 조형은 아니다.",
-    "유약은 본체 표면에 직접 칠하며 손잡이와 아래쪽 덧댄 흙은 본체 도포율에 따라 전체 마감색을 적용한다.",
-    "이번 건조 단계는 가죽경도 18%에서 끝나며 완전건조·초벌은 후속 기능으로 남긴다.",
-    "독립 critic에서 전체 REALISM 작업의 넓은 범위와 RPM·수분 성형 효과, 3D 부속물·유약, 소성 결과 연결에 대한 중간 심각도 검증 개선점이 남아 있어 전체 작업은 구현 단계다.",
+    "도예 물성은 짧은 브라우저 세션을 위한 근사 모델이다.",
     "모바일 터치 조작은 현재 범위에 포함하지 않았다.",
     "Vite build는 Three.js 메인 청크가 500kB를 넘는다는 성능 경고를 남긴다."
   ],
-  "out_of_scope_findings": [
-    "후속 성형 도구 작업: 손잡이 성형판 직접 조작, 물그릇·스펀지, 굽깎기 도구, 양손 소매 색 통일",
-    "후속 공정 물성 작업: 완전건조·초벌·시유·재벌, 도포 두께 결함, cone/heatwork 기반 소성",
-    "후속 피드백 작업: 성형 중 주먹으로 폐기, 저점수 결과 깨기, 도예 용어 도움말, 색·마감·소성 조건이 포함된 주문"
-  ],
+  "out_of_scope_findings": [],
   "docs_updated": {
     "needed": true,
-    "updated": ["DESIGN.md", "README.md"]
+    "updated": ["DESIGN.md", "FEATURE_BACKLOG.md", "README.md"]
   },
   "lessons": {
     "recorded": true,
     "candidates": [
-      "느린 헤드리스 WebGL에서도 물레 감속이 실제 시간에 가깝도록 wheel delta를 렌더 보간 delta와 분리한다."
+      "WebGL E2E는 단일 worker에서 실행해야 포인터와 가상 시간 검증이 안정적이다."
     ]
   },
   "rollback": {
-    "method": "REALISM-001에서 변경된 게임 상태, 점토 모델, UI, 문서와 테스트를 한 변경 단위로 되돌린다."
+    "method": "REALISM-001에서 변경한 게임 상태, 점토 모델, UI, 문서와 테스트를 함께 되돌린다."
   },
   "design": {
     "rendered_verification": true,
     "environment": "Playwright Chromium 1440x900, WebGL2",
-    "notes": "초기 막힌 흙덩이에서 바로 성형과 마감이 가능함을 확인했고, 중심 우클릭 확대와 좌클릭 축소, 별도 흙덩이와 손잡이 조절, 마우스 유약 도포, 900°C 저온 소성 결과, 결과표와 3D 전체 보기를 실제 1440x900 WebGL2 렌더링으로 확인했다. 추가로 성형 종료 시 100% 수분 보존, 건조 대기·중간 진행의 연속적인 색 변화, 18% 가죽경도 도달과 유약 잠금 해제를 확인했다. 최종 Playwright 흐름의 콘솔 오류는 0건이었다."
+    "notes": "형태 확인 즉시 결과 진입, 아래 높이 추가, 결과 3D 보기와 키보드 focus 순서를 실제 렌더에서 확인했고 콘솔 오류는 0건이었다."
   }
 }

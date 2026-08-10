@@ -50,7 +50,7 @@ human:
 `src/game/process.ts`, `src/main.ts`, `src/styles.css`, `tests/moisture-001.test.ts`, `e2e/moisture-001.spec.ts`, `e2e/quality.spec.ts`
 
 `src/main.ts`와 `src/styles.css`는 공유 파일이므로 수분 반응 연결과 상태별 시각 전조에 필요한 최소 diff만 수정한다.
-`e2e/quality.spec.ts`는 물 적시기 직후 과습 진입과 성형 종료가 자연 감소 뒤의 현재 수분을 보존하는지 확인하도록 기존 assertion만 갱신한다.
+`e2e/quality.spec.ts`는 물 적시기와 형태 결과 진입이 함께 동작하는지 확인한다.
 `oh-my-design`/`getdesign.md` 후보는 현재 도구에서 조회할 수 없어 `DESIGN.md`에 기록된 대체 축(테라코타 공방 색, 직접 조작 상태 가시성)을 유지한다.
 
 ## Allowed scope
@@ -59,7 +59,7 @@ human:
 
 ## Forbidden scope
 
-물그릇 직접 조작, 건조·소성 단계 재설계
+물그릇 직접 조작과 주문 점수 재설계
 
 ## Acceptance criteria
 

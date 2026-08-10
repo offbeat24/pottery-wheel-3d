@@ -1,27 +1,9 @@
 import { sampleOuterRadius } from './clay'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown } from './types'
 
-export const PACE_SECONDS = 60
-export const MAX_PACE = 1.35
-export const MIN_PACE = 0.7
-export const PACE_WORK_SECONDS = 8
-
-export function paceMultiplier(elapsedSeconds: number, touchedSeconds: number): number {
-  const pace = Math.max(MIN_PACE, Math.min(MAX_PACE, 1 + (PACE_SECONDS - Math.max(0, elapsedSeconds)) / PACE_SECONDS * 0.5))
-  return pace > 1
-    ? 1 + (pace - 1) * Math.min(1, Math.max(0, touchedSeconds) / PACE_WORK_SECONDS)
-    : pace
-}
-
-export function firingMultiplier(qualityPercent: number): number {
-  return Math.max(0.5, Math.min(1, qualityPercent / 100))
-}
-
-export function sellPrice(totalScore: number, firing = 1, pace = 1): number {
-  const effectiveScore = Math.max(0, Math.min(100, totalScore)) * Math.max(0.5, Math.min(1, firing)) / 100
-  const value = (1000 + 29000 * effectiveScore ** 2.4)
-    * Math.max(MIN_PACE, Math.min(MAX_PACE, pace))
-  return Math.round(value / 100) * 100
+export function sellPrice(totalScore: number): number {
+  const normalizedScore = Math.max(0, Math.min(100, totalScore)) / 100
+  return Math.round((1000 + 29000 * normalizedScore ** 2.4) / 100) * 100
 }
 
 export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBreakdown {

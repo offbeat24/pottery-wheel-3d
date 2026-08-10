@@ -1,0 +1,58 @@
+critic: design
+task_id: REALISM-001
+iteration: 7
+no_issues_found: false
+findings:
+  - severity: high
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 323-333 and 1022-1029 (addVisibleClayLump, joinClayLump)
+    description: >-
+      `흙 붙이기`는 현재 작업물 아래의 높이를 늘리지 않고, 납작한 SphereGeometry를
+      별도 accessory mesh로 물레 위에 얹는다. 본체 ClayProfile은 바뀌지 않으며 E2E도
+      e2e/quality.spec.ts 93-97에서 버튼 전후 높이와 폭이 같아야 한다고 고정한다. 최신
+      1440x900 전체 보기 근거
+      playwright-report/data/c7ca3b4e089dee2ec4ebc004a8fabf4a656dc8b6.png에서는 이 메시가
+      작품 하단 오른쪽에 주황색 혹처럼 튀어나와 있다. 이는 사용자가 지정한 "현재 작업물
+      아래에 높이만 추가"하는 동작 및 DESIGN.md의 입력 결과가 형태로 즉시 드러나야 한다는
+      원칙과 반대다.
+    impact: >-
+      사용자는 높이를 보충하려고 흙을 붙였는데 HUD 높이, 주문 윤곽 비교, 점수에 아무 변화가
+      없고 비대칭 부속물만 생긴다. 형태 맞추기가 유일한 목표인 단순화 이후 이 행동은 핵심
+      플레이 결과를 왜곡하므로 현재 상태로는 릴리스할 수 없다.
+    verification: >-
+      1440x900에서 물레를 멈추고 `흙 붙이기`를 누른다. 누르기 전후 #height-value와
+      clayMesh의 하단 실루엣을 비교한 뒤 결과의 `3D 전체 보기`로 들어간다. 높이는 그대로이고
+      본체와 분리된 납작한 혹이 회전하는 것을 확인한다.
+    suggested_fix: >-
+      accessory sphere와 attachedLumpMeshes 경로를 제거하고, 한 덩이마다 현재 성형 프로필
+      아래에 일정 높이의 축대칭 점토 구간을 추가해 기존 형상을 위로 올린 하나의 ClayProfile로
+      합친다. clayMesh, 높이 HUD, 실루엣 비교와 점수가 같은 프로필을 사용하게 하고 E2E를
+      `높이는 증가하고 현재 상부 폭/곡선은 유지되며 별도 메시가 없다`로 바꾼다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 97-126 and 1175-1203 (intro/result overlays and focus transitions)
+    description: >-
+      intro와 결과는 배경을 가리고 행동을 요구하는 시각적 모달이지만 `role=dialog`,
+      `aria-modal`, 제목 연결, 진입 focus 이동과 focus trap이 없다. 시작할 때는 닫힌 intro의
+      버튼에서 canvas로 focus를 보내지만, 결과가 열릴 때는 focus가 `형태 확인하기`에 남고
+      결과에서 다시 빚기/다음 주문을 선택해도 작업 canvas로 복원하지 않는다.
+    impact: >-
+      키보드와 보조기술 사용자는 결과가 열렸다는 구조적 전환을 알기 어렵고, 보이지 않는
+      배경 컨트롤까지 Tab으로 이동할 수 있다. 형태 확인이 유일한 완료 단계가 된 현재 루프에서
+      결과 진입과 재시작의 조작 경계가 불완전하다.
+    verification: >-
+      키보드만 사용해 시작한 뒤 `형태 확인하기`까지 이동해 결과를 연다. 접근성 트리에서
+      result-modal의 role/name을 확인하고 Tab 순서가 배경으로 빠지는지, `다시 빚기` 후
+      canvas에 focus가 복원되는지 확인한다.
+    suggested_fix: >-
+      두 오버레이에 dialog semantics와 aria-labelledby를 부여하고 열릴 때 제목 또는 첫
+      행동으로 focus를 이동한다. 열린 동안 배경은 inert 처리하고 focus를 가둔 뒤, intro
+      종료·다시 빚기·다음 주문에서는 canvas로, 전체 보기에서 결과표로 돌아올 때는 해당
+      호출 버튼으로 focus를 복원한다.

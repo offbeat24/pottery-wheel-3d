@@ -1,0 +1,80 @@
+critic: test
+task_id: REALISM-001
+iteration: 8
+no_issues_found: false
+findings:
+  - severity: high
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/water-001.spec.ts
+      location: lines 100-106
+    description: >-
+      필수 전체 검증이 스펀지 재시작 복구에서 실패한다. `npm run verify`에서 unit 44개와
+      다른 E2E 4개는 통과했지만 이 시나리오는 두 번 누른 뒤에도 data-sponge가 100으로
+      남아 실패했다. `npx playwright test e2e/water-001.spec.ts` 단독 재실행도 같은 line
+      105에서 재현됐다. 실패 화면은 첫 확인 토스트와 원래 버튼 문구를 함께 보여 2.2초
+      확인 창이 끝나기 전에 두 번째 입력을 안정적으로 전달하지 못한 테스트 타이밍 문제와
+      실제 복구 실패를 현재 증거만으로 구분할 수 없다.
+    impact: >-
+      REALISM-001의 "수분, 스펀지와 복구가 기존처럼 동작" 수용 조건과 `npm run verify`
+      완료 조건이 red다. 구현 회귀와 느린 WebGL 환경의 입력 지연을 구분하지 못해 이
+      상태로는 pre-review 완료 근거를 만들 수 없다.
+    verification: >-
+      샌드박스 밖에서 `npm run verify`와
+      `npx playwright test e2e/water-001.spec.ts`를 각각 실행한다. 두 실행 모두
+      e2e/water-001.spec.ts:105에서 Expected 0, Received 100으로 실패하는지 확인한다.
+    suggested_fix: >-
+      재시작 복구를 앞선 장시간 물 조작 시나리오에서 분리해 짧은 독립 E2E로 만든다. 첫
+      클릭 뒤 is-confirming 또는 확인 문구를 기다리고, 확인 창 안에서 두 번째 click을
+      결정적으로 전달한 다음 수분 82, sponge 0, reserve 2와 초기 profile을 함께 검증한다.
+      실제 브라우저에서도 두 번째 클릭이 무시되면 확인 창 또는 restart handler를 고친다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/clay.test.ts
+      location: lines 62-71
+    description: >-
+      예비 흙 테스트는 초기 높이에서 한 번 추가하는 정상 경로만 확인한다. 그러나
+      addClayBelow는 MAX_HEIGHT에서 원본 clone을 반환하는 반면 joinClayLump는 그 결과를
+      확인하기 전에 addReserveClay로 reserve를 줄이고 질량을 180g 늘린다. 이미 충분히
+      높게 성형한 작품에서 흙을 붙이면 높이는 그대로인데 예비 흙과 질량만 소비되는 구현도
+      현재 unit/E2E를 모두 통과할 수 있다.
+    impact: >-
+      "흙 붙이기는 작업물 아래에 높이를 추가하기만 한다"는 최신 요구와 달리 사용자가
+      제한 근처에서 재료를 잃고, 화면 질량과 실제 profile 부피가 어긋날 수 있다.
+    verification: >-
+      MAX_HEIGHT 또는 MAX_HEIGHT-RESERVE_CLAY_HEIGHT 미만·경계·초과 profile에서
+      addClayBelow를 호출하고, src/main.ts의 joinClayLump 호출 순서와 clayButton disabled
+      조건에 높이 여유 검사가 없는지 대조한다.
+    suggested_fix: >-
+      높이 한계에서 버튼을 비활성화하거나 실제 추가 높이가 0이면 reserve와 질량을 소비하지
+      않도록 하나의 상태 전이로 묶는다. 두 예비 흙의 연속 사용과 높이 한계 직전·정확한
+      경계·한계 도달 후를 unit 및 E2E로 검증한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 23-26 and 97-107
+    description: >-
+      간소화 E2E는 새 2단계 패널과 즉시 결과·세 점수·형태 평가액의 존재만 확인한다.
+      삭제 대상인 손잡이, 건조, 유약, 가마 UI가 없는지와 결과에 소성·속도 multiplier가
+      없는지는 assertion하지 않는다. unit도 createInitialCraftState의 정확한 key 집합과
+      삭제 계산 export의 부재를 검증하지 않아, 숨겨진 구 UI나 잔존 상태·계산을 다시
+      넣은 구현도 현재 테스트를 통과할 수 있다.
+    impact: >-
+      제거한 기능의 UI, 상태, 계산과 테스트가 남지 않아야 한다는 명시적 수용 조건에 자동
+      회귀 방어가 없다. 이후 변경에서 복잡한 공정 상태가 조용히 되살아나도 형태 맞추기
+      happy path는 계속 green일 수 있다.
+    verification: >-
+      e2e/quality.spec.ts에서 handle-action, drying-action, data-glaze, kiln-temperature,
+      result-finish와 제거 문구에 대한 count 0 assertion이 없고 tests/process.test.ts가
+      CraftState의 정확한 필드 집합을 확인하지 않는지 대조한다.
+    suggested_fix: >-
+      시작·결과 화면에서 삭제한 control/testid와 공정 문구가 0개인지 E2E로 확인하고,
+      createInitialCraftState의 key를 moisture, clayMass, reserveLumps로 고정한다. 필요하면
+      제거된 계산·타입 이름을 금지하는 좁은 정적 검사도 verify에 연결한다.

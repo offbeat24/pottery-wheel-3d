@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import './styles.css'
 import {
   PROFILE_SAMPLES,
+  MAX_HEIGHT,
+  addClayBelow,
   buildSafeProfile,
   changeHeight,
   collapseWideSection,
@@ -19,31 +21,20 @@ import {
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
 import { ORDERS } from './game/orders'
-import { firingMultiplier, paceMultiplier, scoreClay, sellPrice } from './game/scoring'
+import { scoreClay, sellPrice } from './game/scoring'
 import {
-  GLAZES,
-  LEATHER_HARD_MOISTURE,
   addReserveClay,
   rubWater,
   soakSponge,
   SPONGE_CAPACITY,
-  applyGlaze,
-  attachHandle,
   createInitialCraftState,
-  finishForming,
-  firePiece,
-  firedClayColor,
-  firedGlazeColor,
   moistureResponse,
-  setKilnTemperature,
   shapingEfficiency,
   structuralPressureGain,
-  updateGlazeCoverage,
-  updateDrying,
   updateMoisture,
   wetClayColor,
 } from './game/process'
-import type { ClayProfile, CraftState, GlazeChoice, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
+import type { ClayProfile, CraftState, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
 import { createWorkshop } from './visuals/workshop'
@@ -73,47 +64,15 @@ app.innerHTML = `
       <div class="material-meter"><div><span>수분</span><strong id="moisture-value">82%</strong></div><div class="material-track" id="moisture-track" role="progressbar" aria-label="점토 수분" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82" aria-valuetext="적정 · 표면이 안정적입니다"><i id="moisture-fill"></i></div><i id="sponge-fill" class="sponge-track"></i><span class="visually-hidden" id="material-state" role="status" aria-live="polite">수분이 적정해 표면이 안정적입니다.</span></div>
     </aside>
     <aside class="craft-panel" aria-label="제작 과정" data-testid="craft-panel">
-      <div class="craft-heading"><span>MAKING PROCESS</span><strong id="stage-name">01 · 중심 열기</strong></div>
+      <div class="craft-heading"><span>SHAPE MATCH</span><strong id="stage-name">형태 맞추기</strong></div>
       <ol class="stage-list" id="stage-list">
-        <li data-stage="opening" class="done"><i>1</i><span>흙 준비</span></li>
-        <li data-stage="forming"><i>2</i><span>물레 성형</span></li>
-        <li data-stage="leather-hard"><i>3</i><span>건조·마감</span></li>
-        <li data-stage="glazing"><i>4</i><span>유약·소성</span></li>
+        <li data-stage="forming" class="active"><i>1</i><span>물레 성형</span></li>
+        <li data-stage="result"><i>2</i><span>형태 확인</span></li>
       </ol>
       <p class="stage-guide" id="stage-guide">바로 외형을 빚거나, 중심에서 우클릭해 구멍을 키울 수 있어요.</p>
       <div class="material-actions">
         <button id="water-button" data-testid="water-action"><span>💧</span><b>스펀지 적시기</b><small>W</small></button>
         <button id="clay-button" data-testid="clay-action"><span>●</span><b>흙 붙이기</b><small id="clay-reserve">2개</small></button>
-        <button id="handle-button" data-testid="handle-action"><span>∩</span><b>손잡이</b><small>H</small></button>
-      </div>
-      <div class="handle-tools" id="handle-tools" aria-label="손잡이 모양 조절">
-        <div class="tool-row"><label for="handle-width">폭</label><input id="handle-width" type="range" min="70" max="140" value="100"><output id="handle-width-output">100%</output></div>
-        <div class="tool-row"><label for="handle-height">높이</label><input id="handle-height" type="range" min="70" max="150" value="100"><output id="handle-height-output">100%</output></div>
-        <div class="tool-row"><label for="handle-thickness">두께</label><input id="handle-thickness" type="range" min="60" max="150" value="100"><output id="handle-thickness-output">100%</output></div>
-        <div class="tool-row"><label for="handle-position">위치</label><input id="handle-position" type="range" min="32" max="72" value="55"><output id="handle-position-output">55%</output></div>
-      </div>
-      <div class="drying-tools" id="drying-tools" aria-label="작품 건조" hidden>
-        <div class="drying-top"><span>시간 압축 건조</span><strong id="drying-state">건조 대기</strong></div>
-        <div class="drying-track" id="drying-track" role="progressbar" aria-label="가죽경도 건조 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="drying-fill"></i></div>
-        <button id="drying-button" data-testid="drying-action">건조 시작</button>
-        <small>수분과 표면이 천천히 변해 가죽경도에 도달합니다.</small>
-      </div>
-      <div class="glaze-tools" id="glaze-tools" aria-label="유약 선택">
-        <span class="tool-label">GLAZE</span>
-        <div class="glaze-options">
-          <button class="glaze-button celadon" data-glaze="celadon" aria-label="비취 청자 유약"></button>
-          <button class="glaze-button cream" data-glaze="cream" aria-label="쌀빛 백유"></button>
-          <button class="glaze-button iron" data-glaze="iron" aria-label="철유 갈색"></button>
-          <button class="glaze-button unglazed" data-glaze="unglazed" aria-label="무유약">無</button>
-          <strong id="glaze-name">유약을 골라주세요</strong>
-        </div>
-        <div class="coverage-row"><span>도포율</span><div class="coverage-track"><i id="coverage-fill"></i></div><strong id="coverage-value">0%</strong></div>
-        <small class="brush-guide" id="brush-guide">유약을 고른 뒤 도자기 표면을 좌드래그하세요.</small>
-      </div>
-      <div class="kiln-tools" id="kiln-tools">
-        <div class="kiln-top"><span class="tool-label">KILN</span><strong><output id="kiln-output">1220</output>°C</strong></div>
-        <input id="kiln-temperature" data-testid="kiln-temperature" type="range" min="900" max="1300" step="10" value="1220" aria-label="가마 온도">
-        <div class="kiln-scale"><span>900°</span><span>1300°</span></div>
       </div>
     </aside>
     <div class="bottom-dock">
@@ -137,27 +96,26 @@ app.innerHTML = `
     </div>
     <div class="toast" id="toast" role="status"></div>
 
-    <section class="modal-layer" id="intro-modal">
+    <section class="modal-layer" id="intro-modal" role="dialog" aria-modal="true" aria-labelledby="intro-title">
       <div class="intro-card">
         <p class="eyebrow">오늘의 공방이 열렸습니다</p>
-        <h2>흙이 원하는 모양을<br>천천히 찾아주세요.</h2>
-        <p class="intro-lead">한 덩이 흙을 빚고, 수분과 속도를 살피며 형태를 만든 뒤 유약을 입혀 구워냅니다.</p>
+        <h2 id="intro-title">흙이 원하는 모양을<br>천천히 찾아주세요.</h2>
+        <p class="intro-lead">한 덩이 흙을 빚고, 수분과 속도를 살피며 주문의 형태를 맞춰보세요.</p>
         <div class="intro-steps">
           <div class="intro-step"><strong>1</strong><b>덩이에서 시작</b><span>바로 외형을 빚거나 중심을 우클릭해 원하는 만큼 구멍을 냅니다.</span></div>
           <div class="intro-step"><strong>2</strong><b>수분과 성형</b><span>W로 물을 더하며 양손으로 얇고 높게 흙을 늘립니다.</span></div>
-          <div class="intro-step"><strong>3</strong><b>접합과 마감</b><span>아래에 흙을 덧대고 손잡이 비율을 따로 다듬습니다.</span></div>
-          <div class="intro-step"><strong>4</strong><b>유약과 소성</b><span>표면을 직접 칠하고 온도에 따른 소성 색을 확인합니다.</span></div>
+          <div class="intro-step"><strong>3</strong><b>형태 확인</b><span>물레를 멈추고 성형을 마치면 주문 윤곽과 바로 비교합니다.</span></div>
         </div>
         <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button" data-testid="start-action">첫 주문 시작</button></div>
       </div>
     </section>
 
-    <section class="modal-layer" id="result-modal" hidden>
+    <section class="modal-layer" id="result-modal" role="dialog" aria-modal="true" aria-labelledby="result-title" hidden>
       <div class="result-card">
         <div class="result-head">
           <div><p class="eyebrow" id="result-eyebrow">작업 결과</p><h2 id="result-title">손끝이 만든 좋은 곡선이에요.</h2></div>
           <div class="result-stats">
-            <div class="result-price"><span>최종 판매가</span><strong id="result-price">0원</strong><small id="result-price-note">굽기 전 추정 0원</small></div>
+            <div class="result-price"><span>형태 평가액</span><strong id="result-price">0원</strong></div>
             <div class="total-score"><strong id="total-score">84</strong><span>형태 총점</span></div>
           </div>
         </div>
@@ -165,12 +123,11 @@ app.innerHTML = `
           <div><div class="comparison" id="comparison"></div><div class="legend"><span><i></i>완성품</span><span><i class="target-key"></i>주문 윤곽</span></div></div>
           <div class="score-list" id="score-list"></div>
         </div>
-        <div class="result-finish" id="result-finish"></div>
         <div class="result-actions"><button class="secondary-button" id="result-view-button" data-testid="result-view-action">3D 전체 보기</button><button class="secondary-button" id="retry-button">다시 빚기</button><button class="primary-button" id="next-button">다음 주문</button></div>
       </div>
     </section>
     <div class="result-view-dock" id="result-view-dock" hidden>
-      <div><span>FIRED PIECE</span><strong id="result-view-name">완성품 전체 보기</strong><small>드래그로 돌리고 휠로 확대하세요</small></div>
+      <div><span>SHAPED PIECE</span><strong id="result-view-name">성형 결과 전체 보기</strong><small>드래그로 돌리고 휠로 확대하세요</small></div>
       <button id="result-summary-button">결과표 보기</button>
     </div>
   </main>
@@ -215,32 +172,10 @@ const retryButton = getElement<HTMLButtonElement>('#retry-button')
 const nextButton = getElement<HTMLButtonElement>('#next-button')
 const toast = getElement<HTMLElement>('#toast')
 const stageName = getElement<HTMLElement>('#stage-name')
-const craftPanel = getElement<HTMLElement>('.craft-panel')
-const stageList = getElement<HTMLOListElement>('#stage-list')
 const stageGuide = getElement<HTMLElement>('#stage-guide')
 const waterButton = getElement<HTMLButtonElement>('#water-button')
 const clayButton = getElement<HTMLButtonElement>('#clay-button')
 const clayReserve = getElement<HTMLElement>('#clay-reserve')
-const handleButton = getElement<HTMLButtonElement>('#handle-button')
-const handleTools = getElement<HTMLElement>('#handle-tools')
-const handleWidth = getElement<HTMLInputElement>('#handle-width')
-const handleHeight = getElement<HTMLInputElement>('#handle-height')
-const handleThickness = getElement<HTMLInputElement>('#handle-thickness')
-const handlePosition = getElement<HTMLInputElement>('#handle-position')
-const dryingTools = getElement<HTMLElement>('#drying-tools')
-const dryingButton = getElement<HTMLButtonElement>('#drying-button')
-const dryingState = getElement<HTMLElement>('#drying-state')
-const dryingTrack = getElement<HTMLElement>('#drying-track')
-const dryingFill = getElement<HTMLElement>('#drying-fill')
-const glazeTools = getElement<HTMLElement>('#glaze-tools')
-const glazeName = getElement<HTMLElement>('#glaze-name')
-const coverageFill = getElement<HTMLElement>('#coverage-fill')
-const coverageValue = getElement<HTMLElement>('#coverage-value')
-const brushGuide = getElement<HTMLElement>('#brush-guide')
-const kilnTools = getElement<HTMLElement>('#kiln-tools')
-const kilnTemperature = getElement<HTMLInputElement>('#kiln-temperature')
-const kilnOutput = getElement<HTMLOutputElement>('#kiln-output')
-const glazeButtons = [...document.querySelectorAll<HTMLButtonElement>('.glaze-button')]
 const resultViewButton = getElement<HTMLButtonElement>('#result-view-button')
 const resultSummaryButton = getElement<HTMLButtonElement>('#result-summary-button')
 const resultViewDock = getElement<HTMLElement>('#result-view-dock')
@@ -258,6 +193,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.04
 sceneHost.append(renderer.domElement)
+renderer.domElement.tabIndex = 0
 
 const camera = new THREE.PerspectiveCamera(39, 1, 0.1, 40)
 const cameraState = {
@@ -290,7 +226,6 @@ const clayMaterial = new THREE.MeshStandardMaterial({
   metalness: 0,
   side: THREE.DoubleSide,
 })
-const accessoryMaterial = new THREE.MeshStandardMaterial({ color: 0xb96643, roughness: 0.66, metalness: 0 })
 const ghostMaterial = new THREE.MeshBasicMaterial({
   color: 0xffe3ba,
   transparent: true,
@@ -326,42 +261,15 @@ let restartTimer = 0
 let restartConfirming = false
 let materialHintCooldown = 0
 let materialMotionTime = 0
-let handleMesh: THREE.Mesh | null = null
 let centerHover = false
 let lastMaterialMoisture = craft.moisture
 let lastMaterialState = moistureResponse(craft.moisture).state
-let dryingActive = false
-let dryingStartMoisture = craft.moisture
 let elapsedWorkSeconds = 0
-let touchedWorkSeconds = 0
 // 스펀지가 머금은 물. 물그릇에서만 채워지고, 물이 남아 있는 동안은 스펀지를 든 상태다.
 let spongeWater = 0
 let rubbingClay = false
 // 점토에서 시작한 좌드래그만 물 바르기로 본다. 빈 공간 드래그는 그대로 시점 조작이다.
 let spongeDragging = false
-const attachedLumpMeshes: THREE.Mesh[] = []
-
-interface HandleShape {
-  width: number
-  height: number
-  thickness: number
-  position: number
-}
-
-let handleShape: HandleShape = { width: 1, height: 1, thickness: 1, position: 0.55 }
-
-const glazeCanvas = document.createElement('canvas')
-glazeCanvas.width = 256
-glazeCanvas.height = 128
-const glazeContextCandidate = glazeCanvas.getContext('2d')
-if (!glazeContextCandidate) throw new Error('유약 텍스처 캔버스를 만들 수 없습니다.')
-const glazeContext = glazeContextCandidate
-const glazeTexture = new THREE.CanvasTexture(glazeCanvas)
-glazeTexture.colorSpace = THREE.SRGBColorSpace
-glazeTexture.wrapS = THREE.RepeatWrapping
-const GLAZE_GRID_WIDTH = 128
-const GLAZE_GRID_HEIGHT = 64
-const glazeMask = new Uint8Array(GLAZE_GRID_WIDTH * GLAZE_GRID_HEIGHT)
 
 function setGameState(state: 'intro' | 'playing' | 'result' | 'result-view'): void {
   gameRoot.dataset.gameState = state
@@ -412,106 +320,6 @@ function replaceGhost(order: OrderDefinition): void {
   workshop.spinningGroup.add(ghostMesh)
 }
 
-function createHandleMesh(): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.TorusGeometry(0.38, 0.085 * handleShape.thickness, 14, 40),
-    accessoryMaterial,
-  )
-  mesh.castShadow = true
-  mesh.receiveShadow = true
-  workshop.spinningGroup.add(mesh)
-  return mesh
-}
-
-function updateHandleGeometry(): void {
-  if (!handleMesh) return
-  const middleRadius = sampleOuterRadius(clay, handleShape.position)
-  handleMesh.position.set(middleRadius + 0.27 * handleShape.width, clay.height * handleShape.position, 0)
-  handleMesh.scale.set(handleShape.width, Math.max(0.72, clay.height / 1.45) * handleShape.height, 1)
-}
-
-function rebuildHandleGeometry(): void {
-  if (!handleMesh) return
-  handleMesh.geometry.dispose()
-  handleMesh.geometry = new THREE.TorusGeometry(0.38, 0.085 * handleShape.thickness, 14, 40)
-  updateHandleGeometry()
-}
-
-function removeHandle(): void {
-  if (!handleMesh) return
-  workshop.spinningGroup.remove(handleMesh)
-  handleMesh.geometry.dispose()
-  handleMesh = null
-}
-
-function addVisibleClayLump(): void {
-  const index = attachedLumpMeshes.length
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.5, 22, 14), accessoryMaterial)
-  mesh.scale.set(1.08, 0.28, 0.82)
-  mesh.position.set(index % 2 === 0 ? -0.34 : 0.34, 0.09 + index * 0.035, index % 2 === 0 ? 0.08 : -0.08)
-  mesh.rotation.y = index * 1.7
-  mesh.castShadow = true
-  mesh.receiveShadow = true
-  workshop.spinningGroup.add(mesh)
-  attachedLumpMeshes.push(mesh)
-}
-
-function clearClayLumps(): void {
-  attachedLumpMeshes.forEach((mesh) => {
-    workshop.spinningGroup.remove(mesh)
-    mesh.geometry.dispose()
-  })
-  attachedLumpMeshes.length = 0
-}
-
-function hexCss(color: number): string {
-  return `#${color.toString(16).padStart(6, '0')}`
-}
-
-function resetGlazeMask(): void {
-  glazeMask.fill(0)
-  craft = updateGlazeCoverage(craft, 0)
-  renderSurfaceTexture()
-}
-
-function renderSurfaceTexture(): void {
-  const fired = craft.stage === 'fired'
-  const clayColor = fired ? firedClayColor(craft.kilnTemperature) : wetClayColor(craft.moisture)
-  glazeContext.fillStyle = hexCss(clayColor)
-  glazeContext.fillRect(0, 0, glazeCanvas.width, glazeCanvas.height)
-  if (craft.glaze && craft.glaze !== 'unglazed') {
-    const glazeColor = fired ? firedGlazeColor(craft.glaze, craft.kilnTemperature) : GLAZES[craft.glaze].color
-    glazeContext.fillStyle = hexCss(glazeColor)
-    const cellWidth = glazeCanvas.width / GLAZE_GRID_WIDTH
-    const cellHeight = glazeCanvas.height / GLAZE_GRID_HEIGHT
-    glazeMask.forEach((painted, index) => {
-      if (!painted) return
-      const x = (index % GLAZE_GRID_WIDTH) * cellWidth
-      const y = Math.floor(index / GLAZE_GRID_WIDTH) * cellHeight
-      glazeContext.fillRect(x, y, cellWidth + 1, cellHeight + 1)
-    })
-  }
-  glazeTexture.needsUpdate = true
-}
-
-function paintGlazeAtUv(uv: THREE.Vector2): void {
-  if (craft.stage !== 'glazing' || !craft.glaze || craft.glaze === 'unglazed') return
-  const centerX = Math.round(uv.x * GLAZE_GRID_WIDTH)
-  const centerY = Math.round((1 - uv.y) * GLAZE_GRID_HEIGHT)
-  const radius = 5
-  for (let y = centerY - radius; y <= centerY + radius; y += 1) {
-    if (y < 0 || y >= GLAZE_GRID_HEIGHT) continue
-    for (let x = centerX - radius; x <= centerX + radius; x += 1) {
-      if ((x - centerX) ** 2 + (y - centerY) ** 2 > radius ** 2) continue
-      const wrappedX = (x + GLAZE_GRID_WIDTH) % GLAZE_GRID_WIDTH
-      glazeMask[y * GLAZE_GRID_WIDTH + wrappedX] = 1
-    }
-  }
-  const paintedCells = glazeMask.reduce((total, painted) => total + painted, 0)
-  craft = updateGlazeCoverage(craft, paintedCells / glazeMask.length)
-  renderSurfaceTexture()
-}
-
 /** 포인터 좌표로 raycaster를 세우고, 화면 좌표 환산이 더 필요한 쪽을 위해 캔버스 사각형을 돌려준다. */
 function pointerRay(clientX: number, clientY: number): DOMRect {
   const bounds = renderer.domElement.getBoundingClientRect()
@@ -532,11 +340,10 @@ function hitsClay(clientX: number, clientY: number): boolean {
 
 /** 스펀지를 들고 있으면 성형 입력이 물 바르기로 바뀐다. 물이 있는 동안만이다. */
 function holdingSponge(): boolean {
-  return spongeWater > 0 && craft.stage === 'forming'
+  return spongeWater > 0
 }
 
 function soakSpongeInBowl(): void {
-  if (craft.stage !== 'forming') return
   const before = spongeWater
   spongeWater = soakSponge()
   workshop.setSpongeWetness(spongeWater / SPONGE_CAPACITY)
@@ -576,35 +383,17 @@ function updateSpongePosition(deltaSeconds: number): void {
   workshop.sponge.position.lerp(spongeTarget, 1 - Math.exp(-deltaSeconds * 10))
 }
 
-function paintGlazeFromPointer(clientX: number, clientY: number): void {
-  pointerRay(clientX, clientY)
-  const hit = raycaster.intersectObject(clayMesh, false)[0]
-  if (hit?.uv) paintGlazeAtUv(hit.uv)
-}
-
 function updateClayMaterial(): void {
-  const usesSurfaceTexture = craft.stage === 'glazing' || craft.stage === 'fired'
   const material = moistureResponse(craft.moisture)
-  if (usesSurfaceTexture) renderSurfaceTexture()
-  clayMaterial.map = usesSurfaceTexture ? glazeTexture : null
-  clayMaterial.color.setHex(usesSurfaceTexture ? 0xffffff : wetClayColor(craft.moisture))
-  clayMaterial.roughness = craft.stage === 'fired'
-    ? craft.glaze === 'unglazed' ? 0.72 : 0.28
-    : material.state === 'dry' ? 0.96
+  clayMaterial.map = null
+  clayMaterial.color.setHex(wetClayColor(craft.moisture))
+  clayMaterial.roughness = material.state === 'dry' ? 0.96
     : material.state === 'wet' ? 0.34
     : 0.48 + (82 - craft.moisture) * 0.003
-  clayMaterial.flatShading = craft.stage === 'forming' && material.state === 'dry'
-  clayMaterial.metalness = craft.stage === 'fired' ? 0.04 : 0
+  clayMaterial.flatShading = material.state === 'dry'
+  clayMaterial.metalness = 0
   clayMaterial.needsUpdate = true
 
-  const accessoryColor = craft.stage === 'fired'
-    ? craft.glaze && craft.glaze !== 'unglazed' && craft.glazeCoverage > 0.55
-      ? firedGlazeColor(craft.glaze, craft.kilnTemperature)
-      : firedClayColor(craft.kilnTemperature)
-    : wetClayColor(craft.moisture)
-  accessoryMaterial.color.setHex(accessoryColor)
-  accessoryMaterial.roughness = craft.stage === 'fired' ? 0.6 : clayMaterial.roughness
-  accessoryMaterial.needsUpdate = true
 }
 
 function updateCamera(): void {
@@ -710,7 +499,7 @@ function updateMaterialMotion(deltaSeconds: number): void {
   if (collapseAnimation) return
   materialMotionTime += deltaSeconds
   const material = moistureResponse(craft.moisture)
-  const wetMotion = !reduceMotion && craft.stage === 'forming' && material.state === 'wet'
+  const wetMotion = !reduceMotion && material.state === 'wet'
     ? (material.riskMultiplier - 1) * wheelState.speed
     : 0
   gameRoot.dataset.materialMotion = String(wetMotion > 0)
@@ -721,7 +510,6 @@ function updateMaterialMotion(deltaSeconds: number): void {
 
 function applyContinuousShaping(deltaSeconds: number, pressureDeltaSeconds: number): void {
   if (collapseAnimation) return
-  if (craft.stage !== 'forming') return
   // 한 손이 스펀지를 쥐고 있는 동안은 흙을 밀지 않는다. 같은 좌드래그가 물 바르기로 쓰인다.
   if (holdingSponge()) {
     structuralPressure = Math.max(0, structuralPressure - deltaSeconds * 2.5)
@@ -794,7 +582,6 @@ function applyContinuousShaping(deltaSeconds: number, pressureDeltaSeconds: numb
     clay = changeHeight(clay, -shapingDelta * material.sagRate * (0.6 + wheelState.speed))
   }
   replaceMeshGeometry(clayMesh, clay)
-  updateHandleGeometry()
 }
 
 function triggerCut(): void {
@@ -828,7 +615,6 @@ function triggerCut(): void {
   clay = cut.remaining
   setSelection(0.9)
   replaceMeshGeometry(clayMesh, clay)
-  updateHandleGeometry()
   structuralPressure = 0
   structuralWarningActive = false
   structuralCooldown = 0.75
@@ -868,7 +654,6 @@ function updateCollapseAnimation(deltaSeconds: number): void {
   if (collapseAnimation.meshAccumulator >= 1 / 30 || rawProgress >= 1) {
     clay = interpolateClayProfile(collapseAnimation.from, collapseAnimation.to, fallingProgress)
     replaceMeshGeometry(clayMesh, clay)
-    updateHandleGeometry()
     collapseAnimation.meshAccumulator = 0
   }
 
@@ -976,20 +761,16 @@ function updateHud(): void {
   const material = moistureResponse(craft.moisture)
   const maxRadius = Math.max(...clay.outerRadii)
   const efficiency = shapingEfficiency(wheelState.speed, craft.moisture)
-  gameRoot.dataset.craftStage = craft.stage
   gameRoot.dataset.opening = clay.opening.toFixed(2)
   gameRoot.dataset.moisture = String(Math.round(craft.moisture))
   gameRoot.dataset.moistureState = material.state
   gameRoot.dataset.sponge = String(Math.round(spongeWater))
-  gameRoot.dataset.glazeCoverage = String(Math.round(craft.glazeCoverage * 100))
-  gameRoot.dataset.dryingActive = String(dryingActive)
   gameRoot.dataset.clayColor = clayMaterial.color.getHexString()
   gameRoot.dataset.clayRoughness = clayMaterial.roughness.toFixed(2)
   gameRoot.dataset.clayFlatShading = String(clayMaterial.flatShading)
   gameRoot.dataset.maxRadius = maxRadius.toFixed(4)
   gameRoot.dataset.elapsedWorkSeconds = String(elapsedWorkSeconds)
-  gameRoot.dataset.touchedWorkSeconds = String(touchedWorkSeconds)
-  ghostMesh.visible = craft.stage !== 'fired'
+  ghostMesh.visible = true
   rpmValue.textContent = String(Math.round(wheelState.speed * 120))
   speedFill.style.width = `${Math.round(wheelState.speed * 100)}%`
   heightValue.textContent = `${(clay.height * 12).toFixed(1)} cm`
@@ -1026,11 +807,7 @@ function updateHud(): void {
     : wheelState.speed <= 0.72
       ? `성형 효율 ${Math.round(efficiency * 100)}% · 안정 구간`
       : `성형 효율 ${Math.round(efficiency * 100)}% · 벽 흔들림 주의`
-  const modeCopy = craft.stage === 'drying'
-    ? dryingActive ? '건조 중' : '건조 준비'
-    : craft.stage === 'glazing'
-    ? craft.glaze === 'unglazed' ? '무유약 마감' : '유약 칠하기'
-    : collapseAnimation
+  const modeCopy = collapseAnimation
     ? '주저앉는 중'
     : holdingSponge()
     ? rubbingClay ? '물 바르는 중' : '물 바를 준비'
@@ -1045,24 +822,13 @@ function updateHud(): void {
           : '성형 중'
   modeName.textContent = modeCopy
   renderer.domElement.classList.toggle('shaping', wheelState.mode === 'shaping' && collapseAnimation === null)
-  renderer.domElement.classList.toggle('glazing', craft.stage === 'glazing' && craft.glaze !== 'unglazed')
   modePanel.classList.toggle('is-shaping', wheelState.mode === 'shaping' && collapseAnimation === null)
   modePanel.classList.toggle('is-warning', structuralPressure > 0.08)
   modePanel.classList.toggle('is-collapsing', collapseAnimation !== null)
-  const hintMode = craft.stage === 'drying'
-    ? 'drying'
-    : craft.stage === 'glazing'
-      ? 'glazing'
-      : holdingSponge()
-        ? 'sponge'
-        : wheelState.mode
+  const hintMode = holdingSponge() ? 'sponge' : wheelState.mode
   if (lastHintMode !== hintMode) {
     controlHints.innerHTML = hintMode === 'sponge'
       ? `<div class="hint"><span class="mousecap">좌</span>물 바르기</div><div class="hint"><span class="mousecap">우</span>스펀지 내려놓기</div><div class="hint"><span class="mousecap">물그릇</span>다시 적시기</div>`
-      : hintMode === 'drying'
-      ? `<div class="hint"><span class="mousecap">1</span>건조 시작</div><div class="hint"><span class="mousecap">색</span>표면 확인</div><div class="hint"><span class="mousecap">%</span>수분 확인</div>`
-      : hintMode === 'glazing'
-      ? `<div class="hint"><span class="mousecap">좌</span>유약 붓</div><div class="hint"><span class="mousecap">우</span>회전</div><div class="hint"><span class="mousecap">휠</span>확대</div>`
       : wheelState.mode === 'camera'
       ? `<div class="hint"><span class="mousecap">좌</span>회전</div><div class="hint"><span class="mousecap">우</span>이동</div><div class="hint"><span class="mousecap">휠</span>확대</div>`
       : `<div class="hint"><span class="mousecap">좌</span>좁히기</div><div class="hint"><span class="mousecap">우</span>넓히기</div><div class="hint"><span class="mousecap">양쪽</span>높이</div>`
@@ -1072,10 +838,6 @@ function updateHud(): void {
   const heightPercent = Math.round(selectedNormalizedHeight * 100)
   contactState.textContent = collapseAnimation
     ? '손을 물리고 벽이 내려앉는 모습을 확인하세요'
-    : craft.stage === 'drying'
-      ? dryingActive ? `수분 ${Math.round(craft.moisture)}% · 표면이 밝아지는 중` : '건조 시작을 눌러 가죽경도까지 말리세요'
-    : craft.stage === 'glazing'
-      ? craft.glaze === 'unglazed' ? '바탕 흙 그대로 가마에서 구워냅니다' : `도포율 ${Math.round(craft.glazeCoverage * 100)}% · 표면을 좌드래그하세요`
     : holdingSponge()
       ? rubbingClay
         ? `높이 ${Math.round(selectedNormalizedHeight * 100)}% · 스펀지로 물을 바르는 중 · 스펀지 ${Math.round(spongeWater)}%`
@@ -1101,68 +863,15 @@ function updateHud(): void {
   pressureFill.style.width = `${Math.round(structuralPressure * 100)}%`
   pressureValue.textContent = collapseAnimation ? '붕괴' : structuralPressure >= 0.72 ? '위험' : structuralPressure > 0.08 ? '주의' : '안정'
 
-  const stageIndex = craft.stage === 'forming' ? 1 : craft.stage === 'drying' || craft.stage === 'leather-hard' ? 2 : 3
-  const stageCopies: Record<CraftState['stage'], { name: string; guide: string }> = {
-    forming: { name: '02 · 물레 성형', guide: '외벽은 기존대로 성형하고, 중심에서는 우클릭으로 구멍을 키우고 좌클릭으로 줄여요.' },
-    drying: { name: '03 · 건조', guide: dryingActive ? '수분과 표면 변화를 보며 가죽경도까지 기다리세요.' : '성형을 마쳤습니다. 건조를 시작하세요.' },
-    'leather-hard': { name: '03 · 가죽경도', guide: '가죽경도에 도달했습니다. 무유약 또는 유약을 고르세요.' },
-    glazing: { name: '04 · 유약과 소성', guide: craft.glaze === 'unglazed' ? '바탕 흙은 1000°C 부근에서 가장 안정적입니다.' : '좌드래그로 칠한 뒤 유약에 맞는 온도로 구워내세요.' },
-    fired: { name: '완성 · 가마에서 꺼냄', guide: `소성 품질 ${craft.firingQuality ?? 0}% · 완성된 표면과 결과를 확인하세요.` },
-  }
-  stageName.textContent = stageCopies[craft.stage].name
-  stageGuide.textContent = stageCopies[craft.stage].guide
-  stageList.querySelectorAll<HTMLElement>('li').forEach((item, index) => {
-    item.classList.toggle('active', index === stageIndex && craft.stage !== 'fired')
-    item.classList.toggle('done', index < stageIndex || craft.stage === 'fired')
-  })
-
-  const formingStage = craft.stage === 'forming'
-  craftPanel.classList.toggle('is-finishing', craft.stage === 'drying' || craft.stage === 'leather-hard' || craft.stage === 'glazing' || craft.stage === 'fired')
+  stageName.textContent = '형태 맞추기'
+  stageGuide.textContent = '주문 윤곽에 맞춰 외벽과 높이를 다듬고, 물레를 멈춘 뒤 결과를 확인하세요.'
   const stopped = wheelState.speed <= CAMERA_ENTER_SPEED && wheelState.mode === 'camera'
-  waterButton.disabled = !formingStage || spongeWater >= SPONGE_CAPACITY
-  clayButton.disabled = !formingStage || craft.reserveLumps <= 0 || !stopped
-  handleButton.disabled = craft.stage !== 'forming' || !stopped
-  handleButton.classList.toggle('is-done', craft.handleAttached)
-  handleButton.querySelector('b')!.textContent = craft.handleAttached ? '손잡이 조절' : '손잡이'
+  waterButton.disabled = spongeWater >= SPONGE_CAPACITY
+  clayButton.disabled = craft.reserveLumps <= 0 || clay.height >= MAX_HEIGHT || !stopped
   clayReserve.textContent = `${craft.reserveLumps}개`
-  dryingTools.classList.toggle('is-active', craft.stage === 'drying')
-  dryingTools.hidden = craft.stage !== 'drying'
-  const dryingRange = Math.max(1, dryingStartMoisture - LEATHER_HARD_MOISTURE)
-  const dryingProgress = Math.round(THREE.MathUtils.clamp((dryingStartMoisture - craft.moisture) / dryingRange, 0, 1) * 100)
-  dryingFill.style.width = `${dryingProgress}%`
-  dryingTrack.setAttribute('aria-valuenow', String(dryingProgress))
-  dryingState.textContent = dryingActive ? `${dryingProgress}%` : '건조 대기'
-  dryingButton.disabled = craft.stage !== 'drying' || dryingActive
-  dryingButton.textContent = dryingActive ? '천천히 마르는 중' : '건조 시작'
-  glazeTools.classList.toggle('is-active', craft.stage === 'leather-hard' || craft.stage === 'glazing')
-  kilnTools.classList.toggle('is-active', craft.stage === 'glazing')
-  glazeButtons.forEach((button) => {
-    button.disabled = craft.stage !== 'leather-hard' && craft.stage !== 'glazing'
-    button.classList.toggle('selected', button.dataset.glaze === craft.glaze)
-  })
-  glazeName.textContent = craft.glaze === 'unglazed' ? '무유약' : craft.glaze ? GLAZES[craft.glaze].name : '마감을 골라주세요'
-  coverageFill.style.width = `${Math.round(craft.glazeCoverage * 100)}%`
-  coverageValue.textContent = `${Math.round(craft.glazeCoverage * 100)}%`
-  brushGuide.textContent = craft.glaze === 'unglazed' ? '유약 없이 흙 자체의 소성 색을 살립니다.' : '도자기 표면을 좌드래그해 직접 칠하세요.'
-  kilnTemperature.disabled = craft.stage !== 'glazing'
-  kilnOutput.value = String(craft.kilnTemperature)
-
   const commonReady = started && stopped && resultModal.hidden && collapseAnimation === null
-  finishButton.hidden = craft.stage === 'drying'
-  if (craft.stage === 'drying') return
-  if (craft.stage === 'forming') {
-    finishButton.disabled = !commonReady
-    finishButton.textContent = commonReady ? '성형 마치기' : '물레를 멈춰주세요'
-  } else if (craft.stage === 'leather-hard') {
-    finishButton.disabled = true
-    finishButton.textContent = '마감을 골라주세요'
-  } else if (craft.stage === 'glazing') {
-    finishButton.disabled = !craft.glaze
-    finishButton.textContent = `${craft.kilnTemperature}°C로 굽기`
-  } else {
-    finishButton.disabled = true
-    finishButton.textContent = '소성 완료'
-  }
+  finishButton.disabled = !commonReady
+  finishButton.textContent = commonReady ? '형태 확인하기' : '물레를 멈춰주세요'
 }
 
 function showToast(message: string): void {
@@ -1188,28 +897,15 @@ function resetClay(): void {
   lastMaterialMoisture = craft.moisture
   lastMaterialState = moistureResponse(craft.moisture).state
   materialState.textContent = '수분이 적정해 표면이 안정적입니다.'
-  dryingActive = false
-  dryingStartMoisture = craft.moisture
   elapsedWorkSeconds = 0
-  touchedWorkSeconds = 0
   gameRoot.dataset.elapsedWorkSeconds = '0'
-  gameRoot.dataset.touchedWorkSeconds = '0'
   replaceMeshGeometry(clayMesh, clay)
-  removeHandle()
-  clearClayLumps()
-  handleShape = { width: 1, height: 1, thickness: 1, position: 0.55 }
-  handleWidth.value = '100'
-  handleHeight.value = '100'
-  handleThickness.value = '100'
-  handlePosition.value = '55'
-  handleTools.classList.remove('is-active')
   centerHover = false
   spongeWater = 0
   rubbingClay = false
   spongeDragging = false
   workshop.setSpongeWetness(0)
   workshop.sponge.position.copy(workshop.spongeHome)
-  glazeMask.fill(0)
   resultViewDock.hidden = true
   updateClayMaterial()
   clearDetachedPieces()
@@ -1251,24 +947,16 @@ function requestRestart(): void {
 }
 
 function showResult(score: ScoreBreakdown): void {
-  const firing = craft.firingQuality ?? 0
-  const firingFactor = firingMultiplier(firing)
-  const pace = paceMultiplier(elapsedWorkSeconds, touchedWorkSeconds)
-  const finalQuality = Math.round(score.total * firingFactor)
-  const estimate = sellPrice(score.total, 1, pace)
-  const finalPrice = sellPrice(score.total, firingFactor, pace)
+  const finalPrice = sellPrice(score.total)
   gameRoot.dataset.shapeScore = String(score.total)
-  gameRoot.dataset.firingMultiplier = String(firingFactor)
-  gameRoot.dataset.paceMultiplier = String(pace)
-  getElement<HTMLElement>('#result-title').textContent = finalQuality >= 90
+  getElement<HTMLElement>('#result-title').textContent = score.total >= 90
     ? '주문서보다 더 아름다운 곡선이에요.'
-    : finalQuality >= 72
+    : score.total >= 72
       ? '손끝이 만든 좋은 곡선이에요.'
       : '흙과 조금 더 이야기를 나눠볼까요?'
   getElement<HTMLElement>('#total-score').textContent = String(score.total)
   getElement<HTMLElement>('#result-price').textContent = `${finalPrice.toLocaleString('ko-KR')}원`
-  getElement<HTMLElement>('#result-price-note').textContent = `굽기 전 추정 ${estimate.toLocaleString('ko-KR')}원`
-  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · ${formatDuration(elapsedWorkSeconds)} · 작업 속도 ×${pace.toFixed(2)}`
+  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · ${formatDuration(elapsedWorkSeconds)}`
   const comparison = getElement<HTMLElement>('#comparison')
   comparison.innerHTML = silhouetteSvg(
     currentOrder.outerRadii,
@@ -1281,59 +969,39 @@ function showResult(score: ScoreBreakdown): void {
     ['실루엣', score.silhouette, '형태의 바깥 곡선'],
     ['높이', score.height, '주문과의 비율'],
     ['매끄러움', score.smoothness, '표면의 고른 정도'],
-    ['소성', firing, '유약과 가마 온도'],
   ].map(([label, value, description]) => `
     <div class="score-row">
       <div class="score-row-top"><span>${label}<small> · ${description}</small></span><strong>${value}</strong></div>
       <div class="score-bar"><i style="width:${value}%"></i></div>
     </div>
   `).join('')
-  const finishName = craft.glaze === 'unglazed'
-    ? '무유약 테라코타'
-    : craft.glaze
-      ? GLAZES[craft.glaze].name
-      : '마감 없음'
-  const firedBodyColor = firedClayColor(craft.kilnTemperature)
-  const firedFinishColor = craft.glaze && craft.glaze !== 'unglazed'
-    ? firedGlazeColor(craft.glaze, craft.kilnTemperature)
-    : firedBodyColor
-  getElement<HTMLElement>('#result-finish').innerHTML = `
-    <div><span class="finish-swatch" style="--finish-color:${hexCss(firedFinishColor)}"></span><p><small>표면 마감</small><strong>${finishName}</strong></p></div>
-    <div><p><small>도포율</small><strong>${craft.glaze === 'unglazed' ? '무유약' : `${Math.round(craft.glazeCoverage * 100)}%`}</strong></p></div>
-    <div><p><small>소성 온도</small><strong>${craft.kilnTemperature}°C</strong></p></div>
-  `
   nextButton.textContent = orderIndex === ORDERS.length - 1 ? '첫 주문으로' : '다음 주문'
   resultModal.hidden = false
   resultViewDock.hidden = true
   setGameState('result')
+  resultViewButton.focus()
+}
+
+function trapDialogFocus(event: KeyboardEvent): void {
+  if (event.key !== 'Tab') return
+  const dialog = !introModal.hidden ? introModal : !resultModal.hidden ? resultModal : null
+  if (!dialog) return
+  const controls = [...dialog.querySelectorAll<HTMLElement>('button, [href], input, [tabindex]:not([tabindex="-1"])')]
+  if (controls.length === 0) return
+  const current = controls.indexOf(document.activeElement as HTMLElement)
+  const next = event.shiftKey
+    ? current <= 0 ? controls.length - 1 : current - 1
+    : current < 0 || current === controls.length - 1 ? 0 : current + 1
+  event.preventDefault()
+  controls[next].focus()
 }
 
 function finishWork(): void {
   if (finishButton.disabled) return
   pointerButtons = 0
   wheelState.pedalDown = false
-  if (craft.stage === 'forming') {
-    craft = finishForming(craft)
-    dryingActive = false
-    dryingStartMoisture = craft.moisture
-    wheelState = { speed: 0, pedalDown: false, mode: 'camera' }
-    showToast('성형 완료 · 건조를 시작할 준비가 됐어요')
-    updateClayMaterial()
-    return
-  }
-  if (craft.stage === 'glazing') {
-    craft = firePiece(craft)
-    updateClayMaterial()
-    showToast(`${craft.kilnTemperature}°C · 가마 불이 올랐습니다`)
-    window.setTimeout(() => showResult(scoreClay(clay, currentOrder)), reduceMotion ? 80 : 620)
-  }
-}
-
-function beginDrying(): void {
-  if (craft.stage !== 'drying' || dryingActive) return
-  dryingActive = true
-  dryingStartMoisture = craft.moisture
-  showToast('건조 시작 · 표면과 수분 변화를 지켜보세요')
+  wheelState = { speed: 0, pedalDown: false, mode: 'camera' }
+  showResult(scoreClay(clay, currentOrder))
 }
 
 function wetClay(): void {
@@ -1342,27 +1010,13 @@ function wetClay(): void {
 
 function joinClayLump(): void {
   if (clayButton.disabled) return
-  const nextCraft = addReserveClay(craft)
+  const nextCraft = addReserveClay(craft, clay.height)
   if (nextCraft === craft) return
   craft = nextCraft
-  addVisibleClayLump()
+  clay = addClayBelow(clay)
+  replaceMeshGeometry(clayMesh, clay)
   updateClayMaterial()
-  showToast(`본체 아래에 예비 흙덩이 180g을 붙였어요 · 총 ${craft.clayMass}g`)
-}
-
-function joinHandle(): void {
-  if (handleButton.disabled) return
-  if (craft.handleAttached) {
-    handleTools.classList.toggle('is-active')
-    return
-  }
-  const nextCraft = attachHandle(craft)
-  if (nextCraft === craft) return
-  craft = nextCraft
-  handleMesh = createHandleMesh()
-  updateHandleGeometry()
-  handleTools.classList.add('is-active')
-  showToast('손잡이를 붙였어요 · 아래 도구로 모양을 다듬어보세요')
+  showToast(`바닥에 높이를 더했어요 · 총 ${craft.clayMass}g`)
 }
 
 renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault())
@@ -1374,7 +1028,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   latestPointerX = event.clientX
   latestPointerY = event.clientY
   pointerKnown = true
-  if (craft.stage === 'forming' && (event.buttons & 1) !== 0 && hitsWaterBowl(event.clientX, event.clientY)) {
+  if ((event.buttons & 1) !== 0 && hitsWaterBowl(event.clientX, event.clientY)) {
     soakSpongeInBowl()
     return
   }
@@ -1386,11 +1040,6 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
     updateSelection(event.clientX, event.clientY)
     spongeDragging = true
     rubbingClay = true
-    renderer.domElement.setPointerCapture(event.pointerId)
-    return
-  }
-  if (craft.stage === 'glazing' && (event.buttons & 1) !== 0) {
-    paintGlazeFromPointer(event.clientX, event.clientY)
     renderer.domElement.setPointerCapture(event.pointerId)
     return
   }
@@ -1421,15 +1070,9 @@ renderer.domElement.addEventListener('pointermove', (event) => {
     previousPointerY = event.clientY
     return
   }
-  if (event.buttons === 0 && craft.stage === 'forming') {
+  if (event.buttons === 0) {
     // 물그릇이 클릭할 수 있는 물건임을 커서로 알린다. 벗어나면 반드시 되돌린다.
     renderer.domElement.style.cursor = hitsWaterBowl(event.clientX, event.clientY) ? 'pointer' : ''
-  }
-  if (craft.stage === 'glazing' && (event.buttons & 1) !== 0) {
-    paintGlazeFromPointer(event.clientX, event.clientY)
-    previousPointerX = event.clientX
-    previousPointerY = event.clientY
-    return
   }
   if (ignoreButtonsUntilRelease) {
     pointerButtons = 0
@@ -1448,9 +1091,9 @@ renderer.domElement.addEventListener('pointermove', (event) => {
       cameraState.target.x = THREE.MathUtils.clamp(cameraState.target.x - deltaX * 0.004, -0.8, 0.8)
       cameraState.target.y = THREE.MathUtils.clamp(cameraState.target.y + deltaY * 0.004, 0.8, 1.8)
     }
-  } else if (wheelState.mode === 'shaping' && craft.stage === 'forming') {
+  } else if (wheelState.mode === 'shaping') {
     const both = (pointerButtons & 1) !== 0 && (pointerButtons & 2) !== 0
-    if (both && craft.stage === 'forming') {
+    if (both) {
       if (pullAnchorHeight === null) {
         updateSelection(event.clientX, event.clientY)
         pullAnchorHeight = selectedNormalizedHeight
@@ -1458,7 +1101,6 @@ renderer.domElement.addEventListener('pointermove', (event) => {
       setSelection(pullAnchorHeight)
       clay = changeHeight(clay, -deltaY * 0.0045 * shapingEfficiency(wheelState.speed, craft.moisture))
       replaceMeshGeometry(clayMesh, clay)
-      updateHandleGeometry()
     } else {
       pullAnchorHeight = null
       updateSelection(event.clientX, event.clientY)
@@ -1497,14 +1139,14 @@ renderer.domElement.addEventListener('wheel', (event) => {
 }, { passive: false })
 
 window.addEventListener('keydown', (event) => {
+  trapDialogFocus(event)
   if (event.code === 'Space') {
     event.preventDefault()
-    if (started && resultModal.hidden && craft.stage === 'forming') wheelState.pedalDown = true
+    if (started && resultModal.hidden) wheelState.pedalDown = true
     return
   }
   if (!started || !resultModal.hidden || event.repeat) return
   if (event.code === 'KeyW') wetClay()
-  if (event.code === 'KeyH') joinHandle()
 })
 window.addEventListener('keyup', (event) => {
   if (event.code === 'Space') {
@@ -1530,56 +1172,27 @@ startButton.addEventListener('click', () => {
 })
 finishButton.addEventListener('click', finishWork)
 waterButton.addEventListener('click', wetClay)
-dryingButton.addEventListener('click', beginDrying)
 clayButton.addEventListener('click', joinClayLump)
-handleButton.addEventListener('click', joinHandle)
-const updateHandleShapeFromControls = (): void => {
-  handleShape = {
-    width: Number(handleWidth.value) / 100,
-    height: Number(handleHeight.value) / 100,
-    thickness: Number(handleThickness.value) / 100,
-    position: Number(handlePosition.value) / 100,
-  }
-  getElement<HTMLOutputElement>('#handle-width-output').value = `${handleWidth.value}%`
-  getElement<HTMLOutputElement>('#handle-height-output').value = `${handleHeight.value}%`
-  getElement<HTMLOutputElement>('#handle-thickness-output').value = `${handleThickness.value}%`
-  getElement<HTMLOutputElement>('#handle-position-output').value = `${handlePosition.value}%`
-  rebuildHandleGeometry()
-}
-for (const input of [handleWidth, handleHeight, handleThickness, handlePosition]) {
-  input.addEventListener('input', updateHandleShapeFromControls)
-}
-glazeButtons.forEach((button) => {
-  button.addEventListener('click', () => {
-    const glaze = button.dataset.glaze as GlazeChoice
-    const changedFinish = craft.glaze !== glaze
-    craft = applyGlaze(craft, glaze)
-    if (changedFinish) resetGlazeMask()
-    updateClayMaterial()
-    showToast(glaze === 'unglazed' ? '유약 없이 흙의 소성 색을 살립니다' : `${GLAZES[glaze].name} 선택 · 표면을 직접 칠해주세요`)
-  })
-})
-kilnTemperature.addEventListener('input', () => {
-  craft = setKilnTemperature(craft, Number(kilnTemperature.value))
-  kilnOutput.value = String(craft.kilnTemperature)
-})
 resultViewButton.addEventListener('click', () => {
   resultModal.hidden = true
   resultViewDock.hidden = false
   cameraState.distance = 5.2
   cameraState.pitch = 0.34
   setGameState('result-view')
+  resultSummaryButton.focus()
 })
 resultSummaryButton.addEventListener('click', () => {
   resultViewDock.hidden = true
   resultModal.hidden = false
   setGameState('result')
+  resultViewButton.focus()
 })
 restartButton.addEventListener('click', requestRestart)
 retryButton.addEventListener('click', () => {
   resultModal.hidden = true
   resetClay()
   setGameState('playing')
+  renderer.domElement.focus()
   showToast(`${currentOrder.name}, 다시 천천히 빚어봐요`)
 })
 nextButton.addEventListener('click', () => {
@@ -1590,6 +1203,7 @@ nextButton.addEventListener('click', () => {
   setGameState('playing')
   replaceGhost(currentOrder)
   updateOrderCard()
+  renderer.domElement.focus()
   showToast(`${currentOrder.name} 주문이 도착했어요`)
 })
 
@@ -1606,6 +1220,7 @@ updateCamera()
 updateOrderCard()
 updateClayMaterial()
 updateHud()
+startButton.focus()
 
 const clock = new THREE.Clock()
 function animate(): void {
@@ -1618,9 +1233,8 @@ function animate(): void {
   if (started) {
     if (gameRoot.dataset.gameState === 'playing') {
       elapsedWorkSeconds += elapsedSeconds
-      if (craft.stage === 'forming' && wheelState.mode === 'shaping' && currentAction() !== 'idle') touchedWorkSeconds += elapsedSeconds
     }
-    craft = updateMoisture(craft, Math.min(elapsedSeconds, 5), wheelState.mode === 'shaping' && currentAction() !== 'idle', wheelState.speed)
+    craft = updateMoisture(craft, wheelDeltaSeconds, wheelState.mode === 'shaping' && currentAction() !== 'idle', wheelState.speed)
     if (rubbingClay) {
       const rubbed = rubWater(craft, spongeWater, deltaSeconds)
       craft = rubbed.state
@@ -1633,17 +1247,9 @@ function animate(): void {
         showToast('스펀지가 말랐어요 · 물그릇에서 다시 적시세요')
       }
     }
-    const stageBeforeDrying = craft.stage
-    craft = updateDrying(craft, wheelDeltaSeconds, dryingActive)
-    if ((craft.stage === 'forming' || craft.stage === 'drying' || craft.stage === 'leather-hard') && Math.abs(craft.moisture - lastMaterialMoisture) >= 1) {
+    if (Math.abs(craft.moisture - lastMaterialMoisture) >= 1) {
       lastMaterialMoisture = craft.moisture
       updateClayMaterial()
-    }
-    if (stageBeforeDrying === 'drying' && craft.stage === 'leather-hard') {
-      dryingActive = false
-      lastMaterialMoisture = craft.moisture
-      updateClayMaterial()
-      showToast('가죽경도 도달 · 표면 마감을 선택할 수 있어요')
     }
   }
   workshop.spinningGroup.rotation.y -= wheelState.speed * deltaSeconds * 7.2

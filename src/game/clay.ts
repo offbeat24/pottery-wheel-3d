@@ -9,6 +9,7 @@ export const MIN_WALL_THICKNESS = 0.09
 export const MIN_HEIGHT = 1.05
 export const MAX_HEIGHT = 2.05
 export const INNER_FLOOR_HEIGHT = 0.16
+export const RESERVE_CLAY_HEIGHT = 0.18
 
 export interface CutResult {
   remaining: ClayProfile
@@ -69,6 +70,24 @@ export function changeHeight(profile: ClayProfile, amount: number): ClayProfile 
   const volumeScale = Math.sqrt(oldHeight / height)
   const outerRadii = smoothProfile(profile.outerRadii.map((radius) => radius * volumeScale), 0.08)
   const innerRadii = smoothProfile(profile.innerRadii.map((radius) => radius * volumeScale), 0.08)
+  return buildProfile(height, outerRadii, innerRadii, profile.opening)
+}
+
+export function addClayBelow(profile: ClayProfile, addedHeight = RESERVE_CLAY_HEIGHT): ClayProfile {
+  const height = Math.min(MAX_HEIGHT, profile.height + Math.max(0, addedHeight))
+  const actualAdded = height - profile.height
+  if (actualAdded <= 0) return cloneProfile(profile)
+
+  const outerRadii = Array.from({ length: PROFILE_SAMPLES }, (_, index) => {
+    const worldHeight = index / (PROFILE_SAMPLES - 1) * height
+    if (worldHeight <= actualAdded) return profile.outerRadii[0]
+    return sampleOuterRadius(profile, (worldHeight - actualAdded) / profile.height)
+  })
+  const innerRadii = Array.from({ length: PROFILE_SAMPLES }, (_, index) => {
+    const worldHeight = index / (PROFILE_SAMPLES - 1) * height
+    if (worldHeight <= actualAdded) return 0.025
+    return sampleInnerRadius(profile, (worldHeight - actualAdded) / profile.height)
+  })
   return buildProfile(height, outerRadii, innerRadii, profile.opening)
 }
 
