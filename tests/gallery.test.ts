@@ -6,8 +6,8 @@ const radii = (value = 0.7): number[] => Array.from({ length: PROFILE_SAMPLES },
 
 describe('전시 저장 복원', () => {
   it('저장한 작품을 그대로 되살린다', () => {
-    const saved = JSON.stringify({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4, firing: 0.8 } })
-    expect(parseGallery(saved)).toEqual({ 'morning-cup': { height: 1.4, outerRadii: radii(), damage: 0.4, firing: 0.8 } })
+    const piece = { height: 1.4, outerRadii: radii(), damage: 0.4, firing: 0.8, pace: 1.2, carvings: [0.4, 0.6] }
+    expect(parseGallery(JSON.stringify({ 'morning-cup': piece }))).toEqual({ 'morning-cup': piece })
   })
 
   it('트임 값이 없거나 범위를 벗어난 저장본은 0으로 본다', () => {
@@ -15,7 +15,12 @@ describe('전시 저장 복원', () => {
     const badDamage = JSON.stringify({ hacked: { height: 1.4, outerRadii: radii(), damage: -5 } })
     expect(parseGallery(noDamage).old.damage).toBe(0)
     expect(parseGallery(noDamage).old.firing).toBe(1)
+    expect(parseGallery(noDamage).old.pace).toBe(1)
+    expect(parseGallery(noDamage).old.carvings).toEqual([])
+    const badCarvings = JSON.stringify({ hacked: { height: 1.4, outerRadii: radii(), carvings: [0.5, 9, 'x'] } })
+    expect(parseGallery(badCarvings).hacked.carvings).toEqual([0.5])
     expect(parseGallery(badDamage).hacked.damage).toBe(0)
+    expect(parseGallery(JSON.stringify({ hacked: { height: 1.4, outerRadii: radii(), pace: 99 } })).hacked.pace).toBe(1.35)
   })
 
   it('빈 값이나 깨진 JSON은 빈 전시로 취급한다', () => {

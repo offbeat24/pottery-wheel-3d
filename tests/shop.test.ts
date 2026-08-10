@@ -21,7 +21,7 @@ describe('공방 상점', () => {
   })
 
   it('이사한 공방은 판매가를 올린다', () => {
-    const score = { silhouette: 80, height: 80, smoothness: 80, total: 80 }
+    const score = { silhouette: 80, height: 80, smoothness: 80, technique: 0, total: 80 }
     expect(priceMultiplier([])).toBe(1)
     expect(sellPrice(score, priceMultiplier([WIDE_STUDIO]))).toBeGreaterThan(sellPrice(score))
   })

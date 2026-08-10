@@ -20,7 +20,7 @@ import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
 import { parseEarnings, parseGallery } from './game/gallery'
 import { ORDERS, availableOrders } from './game/orders'
-import { FIRING_SECONDS, FIRING_WINDOW, firingQuality, scoreClay, sellPrice } from './game/scoring'
+import { FIRING_SECONDS, FIRING_WINDOW, firingQuality, paceMultiplier, scoreClay, sellPrice } from './game/scoring'
 import { CARVING_KNIFE, SHOP_CATEGORY_LABEL, SHOP_ITEMS, bestOwned, parseOwned, priceMultiplier } from './game/shop'
 import type { ShopCategory } from './game/shop'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
@@ -48,6 +48,7 @@ app.innerHTML = `
       <div class="readout-rule"></div>
       <div class="dimension-row"><span>높이</span><strong id="height-value">18.2 cm</strong></div>
       <div class="dimension-row"><span>최대 폭</span><strong id="width-value">19.7 cm</strong></div>
+      <div class="dimension-row"><span>작업 시간</span><strong id="pace-value">0초</strong></div>
       <div class="dimension-row"><span>가마</span><strong id="kiln-value">비어 있음</strong></div>
       <div class="dimension-row"><span>공방 수익</span><strong id="earnings-value">0원</strong></div>
     </aside>
@@ -131,6 +132,7 @@ const heightValue = getElement<HTMLElement>('#height-value')
 const widthValue = getElement<HTMLElement>('#width-value')
 const earningsValue = getElement<HTMLElement>('#earnings-value')
 const kilnValue = getElement<HTMLElement>('#kiln-value')
+const paceValue = getElement<HTMLElement>('#pace-value')
 const speedFill = getElement<HTMLElement>('#speed-fill')
 const modePanel = getElement<HTMLElement>('#mode-panel')
 const modeName = getElement<HTMLElement>('#mode-name')
@@ -241,6 +243,11 @@ let restartConfirming = false
 let moisture = 1
 let wetting = false
 let surfaceDamage = 0
+// 완성까지 걸린 시간과 그중 실제로 흙을 만진 시간. 둘이 판매가 배수를 만든다.
+let workSeconds = 0
+let shapedSeconds = 0
+// 조각칼로 새긴 높이를 새긴 순서대로 담는다. 기법 점수가 위치와 순서를 여기서 읽는다.
+let carvings: number[] = []
 const soundscape = createSoundscape()
 
 function setGameState(state: 'intro' | 'playing' | 'result'): void {
@@ -288,7 +295,14 @@ let saleTimer = 0
 const owned = parseOwned(readStored(OWNED_KEY))
 let hoveredPiece: ExhibitedPiece | null = null
 let flight: { piece: ExhibitedPiece; from: THREE.Vector3; to: THREE.Vector3; progress: number } | null = null
-let kiln: { slotIndex: number; profile: ClayProfile; damage: number; elapsed: number } | null = null
+let kiln: {
+  slotIndex: number
+  profile: ClayProfile
+  damage: number
+  pace: number
+  carvings: number[]
+  elapsed: number
+} | null = null
 let saleHintShown = Object.keys(gallery).length > 0
 let resetConfirming = false
 let resetTimer = 0
@@ -591,10 +605,15 @@ function updateOrderCard(): void {
     const className = index === orderIndex ? 'active' : index < orderIndex ? 'done' : ''
     return `<span class="${className}"></span>`
   }).join('')
+  const technique = currentOrder.technique
+  const techniqueLine = technique
+    ? `<p class="order-technique">E 새김 · 높이 ${technique.grooves.map((groove) => `${Math.round(groove * 100)}%`).join(' · ')}${technique.ordered ? '<br>아래에서 위 순서로' : ''}</p>`
+    : ''
   orderCard.innerHTML = `
     <p class="order-kicker">${currentOrder.subtitle.toUpperCase()}</p>
     <h2 class="order-title">${currentOrder.name}</h2>
     <p class="order-description">${currentOrder.description}</p>
+    ${techniqueLine}
     <div class="silhouette-wrap">${silhouetteSvg(currentOrder.outerRadii, currentOrder.height, currentOrder.accent)}</div>
     <div class="order-progress">${progress}<b class="order-count">${orderIndex + 1} / ${activeOrders.length}</b></div>
   `
@@ -682,6 +701,7 @@ function updateHud(): void {
     const left = Math.round(FIRING_SECONDS - kiln.elapsed)
     kilnValue.textContent = left > 0 ? `${left}초 남음` : left > -FIRING_WINDOW ? '지금 꺼내세요' : `${-left}초 지남`
   }
+  paceValue.textContent = formatSeconds(workSeconds)
   moistureFill.style.width = `${Math.round(moisture * 100)}%`
   moistureValue.textContent = moistureLabel(moisture)
   modePanel.classList.toggle('is-dry', moisture < 0.3)
@@ -689,6 +709,12 @@ function updateHud(): void {
   const canFinish = started && wheelState.mode === 'camera' && wheelState.speed <= CAMERA_ENTER_SPEED && resultModal.hidden && collapseAnimation === null
   finishButton.disabled = !canFinish
   finishButton.textContent = canFinish ? '완성하기' : '물레를 멈춰주세요'
+}
+
+function formatSeconds(seconds: number): string {
+  const whole = Math.floor(seconds)
+  if (whole < 60) return `${whole}초`
+  return `${Math.floor(whole / 60)}분 ${String(whole % 60).padStart(2, '0')}초`
 }
 
 function showToast(message: string): void {
@@ -716,6 +742,9 @@ function resetClay(): void {
   moisture = 1
   wetting = false
   surfaceDamage = 0
+  workSeconds = 0
+  shapedSeconds = 0
+  carvings = []
   selectedNormalizedHeight = 0.58
   selectedIndex = Math.round(selectedNormalizedHeight * (PROFILE_SAMPLES - 1))
   resetRestartConfirmation()
@@ -743,15 +772,16 @@ function requestRestart(): void {
   showToast(`${currentOrder.name} 점토를 처음부터 다시 시작해요`)
 }
 
-function showResult(score: ScoreBreakdown): void {
-  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · 작업 결과`
+function showResult(score: ScoreBreakdown, pace: number): void {
+  const paceLabel = `${formatSeconds(workSeconds)} · 작업 속도 ×${pace.toFixed(2)}`
+  getElement<HTMLElement>('#result-eyebrow').textContent = `${currentOrder.name} · ${paceLabel}`
   getElement<HTMLElement>('#result-title').textContent = score.total >= 90
     ? '주문서보다 더 아름다운 곡선이에요.'
     : score.total >= 72
       ? '손끝이 만든 좋은 곡선이에요.'
       : '흙과 조금 더 이야기를 나눠볼까요?'
   getElement<HTMLElement>('#total-score').textContent = String(score.total)
-  getElement<HTMLElement>('#result-price').textContent = `${sellPrice(score, priceMultiplier(owned)).toLocaleString('ko-KR')}원에 팔 수 있어요`
+  getElement<HTMLElement>('#result-price').textContent = `${sellPrice(score, priceMultiplier(owned) * pace).toLocaleString('ko-KR')}원에 팔 수 있어요`
   const comparison = getElement<HTMLElement>('#comparison')
   comparison.innerHTML = silhouetteSvg(
     currentOrder.outerRadii,
@@ -760,11 +790,13 @@ function showResult(score: ScoreBreakdown): void {
     { radii: clay.outerRadii, height: clay.height },
   )
   const scoreList = getElement<HTMLElement>('#score-list')
-  scoreList.innerHTML = [
+  const rows: [string, number, string][] = [
     ['실루엣', score.silhouette, '형태의 바깥 곡선'],
     ['높이', score.height, '주문과의 비율'],
     ['매끄러움', score.smoothness, '표면의 고른 정도'],
-  ].map(([label, value, description]) => `
+  ]
+  if (currentOrder.technique) rows.push(['기법', score.technique, '새김의 자리와 순서'])
+  scoreList.innerHTML = rows.map(([label, value, description]) => `
     <div class="score-row">
       <div class="score-row-top"><span>${label}<small> · ${description}</small></span><strong>${value}</strong></div>
       <div class="score-bar"><i style="width:${value}%"></i></div>
@@ -779,15 +811,16 @@ function finishWork(): void {
   if (finishButton.disabled) return
   pointerButtons = 0
   wheelState.pedalDown = false
-  loadKiln(ORDERS.indexOf(currentOrder))
-  showResult(scoreClay(clay, currentOrder, surfaceDamage))
+  const pace = paceMultiplier(workSeconds, shapedSeconds)
+  loadKiln(ORDERS.indexOf(currentOrder), pace)
+  showResult(scoreClay(clay, currentOrder, surfaceDamage, carvings), pace)
 }
 
 // 완성한 작품을 선반에 올린다. 같은 주문을 다시 빚으면 그 자리의 작품만 교체한다.
 // 완성한 작품은 곧장 선반으로 가지 않고 가마에서 구워진다. 굽는 동안 다음 주문을 빚는다.
-function loadKiln(slotIndex: number): void {
+function loadKiln(slotIndex: number, pace: number): void {
   if (kiln) unloadKiln()
-  kiln = { slotIndex, profile: cloneProfile(clay), damage: surfaceDamage, elapsed: 0 }
+  kiln = { slotIndex, profile: cloneProfile(clay), damage: surfaceDamage, pace, carvings: [...carvings], elapsed: 0 }
   workshop.setKilnFiring(true)
   showToast(`${ORDERS[slotIndex].name} · 가마에 넣었어요 · ${FIRING_SECONDS}초 뒤에 꺼내세요`)
 }
@@ -804,19 +837,34 @@ function updateKiln(deltaSeconds: number): void {
 // 가마를 클릭하면 꺼낸다. 알맞은 때보다 이르거나 늦으면 굽기 완성도가 떨어진다.
 function unloadKiln(): void {
   if (!kiln) return
-  const { slotIndex, profile, damage, elapsed } = kiln
+  const { slotIndex, profile, damage, pace, carvings: saved, elapsed } = kiln
   const quality = firingQuality(elapsed)
   kiln = null
   workshop.setKilnFiring(false)
-  exhibit(slotIndex, profile, damage, quality, workshop.kilnMouth)
+  exhibit(slotIndex, profile, damage, quality, pace, saved, workshop.kilnMouth)
   const label = quality >= 1 ? '알맞게 구웠어요' : elapsed < FIRING_SECONDS ? '설익었어요' : '너무 오래 구웠어요'
   showToast(`${ORDERS[slotIndex].name} · ${label} · 굽기 ${Math.round(quality * 100)}%`)
 }
 
-function exhibit(slotIndex: number, profile: ClayProfile, damage: number, firing: number, from: THREE.Vector3): void {
+function exhibit(
+  slotIndex: number,
+  profile: ClayProfile,
+  damage: number,
+  firing: number,
+  pace: number,
+  carved: number[],
+  from: THREE.Vector3,
+): void {
   // 앞선 작품이 아직 날아가는 중이면 먼저 제자리에 앉힌다. 그대로 두면 공중에 남는다.
   settleFlight()
-  gallery[ORDERS[slotIndex].id] = { height: profile.height, outerRadii: [...profile.outerRadii], damage, firing }
+  gallery[ORDERS[slotIndex].id] = {
+    height: profile.height,
+    outerRadii: [...profile.outerRadii],
+    damage,
+    firing,
+    pace,
+    carvings: [...carved],
+  }
   const piece = placePiece(slotIndex, profile)
   // 결과 화면이 닫힌 뒤 작품이 물레에서 선반으로 옮겨가는 것을 보여준다.
   flight = {
@@ -967,6 +1015,10 @@ function carveGroove(): void {
   clay = deformRadius(clay, selectedIndex, -0.05 * workability(moisture), 1.1)
   replaceMeshGeometry(clayMesh, clay)
   soundscape.splash()
+  // 같은 자리를 더 파는 것은 새 홈이 아니다. 기록이 늘면 군더더기로 깎인다.
+  const sameGroove = carvings.some((height) => Math.abs(height - selectedNormalizedHeight) < 0.03)
+  if (!sameGroove) carvings.push(selectedNormalizedHeight)
+  showToast(`높이 ${Math.round(selectedNormalizedHeight * 100)}%에 홈을 새겼어요 · ${carvings.length}줄`)
 }
 
 function saveOwned(): void {
@@ -1034,8 +1086,8 @@ function trySell(clientX: number, clientY: number): void {
   const order = ORDERS[slotIndex]
   const saved = gallery[order.id]
   if (!saved) return
-  const score = scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order, saved.damage)
-  const price = sellPrice({ ...score, total: Math.round(score.total * saved.firing) }, priceMultiplier(owned))
+  const score = scoreClay(buildSafeProfile(saved.height, saved.outerRadii), order, saved.damage, saved.carvings)
+  const price = sellPrice({ ...score, total: Math.round(score.total * saved.firing) }, priceMultiplier(owned) * saved.pace)
 
   if (pendingSaleIndex !== slotIndex) {
     pendingSaleIndex = slotIndex
@@ -1130,8 +1182,9 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 
   if (wheelState.mode === 'camera' && pointerButtons === 0) {
     setHoveredPiece(pickPiece(event.clientX, event.clientY))
-    if (!hoveredPiece && kiln && hitsKiln(event.clientX, event.clientY)) {
-      renderer.domElement.style.cursor = 'pointer'
+    // 작품에서 벗어나면 setHoveredPiece가 커서를 지우지만, 가마에서 벗어날 때는 여기서 지워야 한다.
+    if (!hoveredPiece) {
+      renderer.domElement.style.cursor = kiln && hitsKiln(event.clientX, event.clientY) ? 'pointer' : ''
     }
   } else {
     setHoveredPiece(null)
@@ -1308,6 +1361,11 @@ function animate(): void {
     clay = buildSafeProfile(clay.height, smoothProfile(clay.outerRadii, Math.min(0.4, deltaSeconds * 3)))
     surfaceDamage = Math.max(0, surfaceDamage - deltaSeconds * 0.5)
     replaceMeshGeometry(clayMesh, clay)
+  }
+  // 상점을 둘러보는 시간은 작업 시간이 아니다.
+  if (started && resultModal.hidden && shopModal.hidden) {
+    workSeconds += deltaSeconds
+    if (shapingNow && currentAction() !== 'idle') shapedSeconds += deltaSeconds
   }
   if (wasDry && moisture >= 0.3) showToast('흙이 다시 촉촉해졌어요')
   else if (!wasDry && moisture < 0.3) showToast('흙이 메말라가요 · W를 눌러 물을 묻히세요')

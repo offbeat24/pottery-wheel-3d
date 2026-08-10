@@ -101,6 +101,8 @@ export const ORDERS: OrderDefinition[] = [
     height: 1.5,
     accent: '#8c6f9c',
     requires: CARVING_KNIFE,
+    // 조각칼 첫 라운드: 한 줄뿐이라 순서는 보지 않고 위치만 넉넉히 본다.
+    technique: { tool: CARVING_KNIFE, grooves: [0.5], tolerance: 0.1, ordered: false },
     outerRadii: makeProfile((t) => 0.68 + t * 0.06 - bump(t, 0.5, 0.045, 0.11)),
   },
   {
@@ -111,6 +113,8 @@ export const ORDERS: OrderDefinition[] = [
     height: 1.66,
     accent: '#4c6b8a',
     requires: CARVING_KNIFE,
+    // 조각칼 다음 라운드: 세 줄을 아래에서 위로 순서대로, 오차도 절반으로 좁힌다.
+    technique: { tool: CARVING_KNIFE, grooves: [0.6, 0.68, 0.76], tolerance: 0.05, ordered: true },
     outerRadii: makeProfile((t) => {
       const body = 0.62 + bump(t, 0.42, 0.34, 0.3) - bump(t, 1, 0.18, 0.12)
       const grooves = bump(t, 0.6, 0.035, 0.09) + bump(t, 0.68, 0.035, 0.09) + bump(t, 0.76, 0.035, 0.09)
