@@ -9,6 +9,7 @@
 }
 
 * { box-sizing: border-box; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 html, body, #app {
   width: 100%;
@@ -159,16 +160,15 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
 .material-meter strong { color: #fff6e5; }
 .material-track { height: 4px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.13); }
 .material-track i { display: block; width: 82%; height: 100%; border-radius: inherit; background: #8fc4c0; transition: width 180ms, background 180ms; }
-.material-track i.is-dry { background: #e18c62; }
-/* 과습은 성형 효율과 붕괴 위험을 함께 올린다. 마름과 다른 색으로 알린다. */
-.material-track i.is-soaked { background: #6f9ad6; }
+.game-shell[data-moisture-state="dry"] .material-track i { background: #e18c62; }
+.game-shell[data-moisture-state="wet"] .material-track i { background: #70d7ce; box-shadow: 0 0 8px rgba(112,215,206,.62); }
 /* 스펀지가 머금은 물은 수분 게이지 아래 얇은 띠로 보여준다. 계기를 하나 더 두면 패널이 넘친다. */
 .sponge-track { display: block; width: 0; height: 3px; margin-top: 4px; border-radius: 99px; background: #cbb98f; transition: width 180ms; }
 
 .craft-panel {
   position: absolute;
   z-index: 6;
-  top: 350px;
+  top: 410px;
   right: 34px;
   width: 250px;
   padding: 16px;
@@ -267,6 +267,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
   transition: border-color 160ms, box-shadow 160ms;
 }
 .mode-panel.is-shaping { border-color: rgba(255, 218, 166, .46); }
+.game-shell[data-moisture-state="dry"] .mode-panel:not(.is-warning) { border-color: rgba(238, 157, 105, .72); border-style: dashed; }
+.game-shell[data-moisture-state="wet"] .mode-panel:not(.is-warning) { border-color: rgba(112, 215, 206, .72); box-shadow: 0 0 0 2px rgba(112,215,206,.1), 0 18px 42px rgba(57,29,16,.22); }
 .mode-panel.is-warning { border-color: rgba(255, 103, 73, .82); box-shadow: 0 0 0 2px rgba(255,95,69,.14), 0 18px 42px rgba(57,29,16,.22); }
 .mode-panel.is-collapsing { animation: collapse-warning 420ms ease-in-out infinite alternate; }
 
@@ -505,7 +507,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-
   .silhouette-wrap { height: 150px; }
   .silhouette-wrap svg { height: 140px; }
   .work-readout { top: 98px; right: 24px; }
-  .craft-panel { top: 300px; right: 24px; transform: scale(.9); transform-origin: top right; }
+  .craft-panel { top: 380px; right: 24px; transform: scale(.9); transform-origin: top right; }
   .bottom-dock { bottom: 18px; }
   .mode-panel { width: 500px; min-height: 92px; }
   .game-actions { right: 24px; bottom: 22px; }
