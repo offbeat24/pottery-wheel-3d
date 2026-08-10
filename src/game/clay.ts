@@ -5,7 +5,7 @@ export const MIN_OUTER_RADIUS = 0.34
 export const MAX_OUTER_RADIUS = 1.16
 export const CUT_LIMIT_RADIUS = 0.39
 export const WIDEN_LIMIT_RADIUS = 1.12
-export const MIN_WALL_THICKNESS = 0.16
+export const MIN_WALL_THICKNESS = 0.09
 export const MIN_HEIGHT = 1.05
 export const MAX_HEIGHT = 2.05
 export const INNER_FLOOR_HEIGHT = 0.16
@@ -19,9 +19,9 @@ export interface CutResult {
 export function createInitialClay(): ClayProfile {
   const outerRadii = Array.from({ length: PROFILE_SAMPLES }, (_, index) => {
     const t = index / (PROFILE_SAMPLES - 1)
-    return 0.76 + Math.sin(t * Math.PI) * 0.06 - t * 0.025
+    return 0.72 + Math.sin(t * Math.PI) * 0.09 - t * 0.12
   })
-  return buildSafeProfile(1.52, outerRadii)
+  return buildSafeProfile(1.18, outerRadii, 0)
 }
 
 export function cloneProfile(profile: ClayProfile): ClayProfile {
@@ -29,6 +29,7 @@ export function cloneProfile(profile: ClayProfile): ClayProfile {
     height: profile.height,
     outerRadii: [...profile.outerRadii],
     innerRadii: [...profile.innerRadii],
+    opening: profile.opening,
   }
 }
 
@@ -38,13 +39,25 @@ export function deformRadius(
   amount: number,
   brushSize = 4.5,
 ): ClayProfile {
+  const targetVolume = estimateClayVolume(profile)
   const nextOuter = [...profile.outerRadii]
+  const nextInner = [...profile.innerRadii]
   for (let index = 0; index < nextOuter.length; index += 1) {
     const distance = (index - centerIndex) / brushSize
     const influence = Math.exp(-distance * distance * 1.7)
     nextOuter[index] = clamp(nextOuter[index] + amount * influence, MIN_OUTER_RADIUS, MAX_OUTER_RADIUS)
+    if (profile.opening > 0.2) {
+      const innerMotion = amount > 0 ? amount * 1.32 : amount * 0.58
+      nextInner[index] = Math.max(0.025, nextInner[index] + innerMotion * influence)
+    }
   }
-  return buildSafeProfile(profile.height, smoothProfile(nextOuter, 0.12))
+  const raw = buildProfile(
+    profile.height,
+    smoothProfile(nextOuter, 0.12),
+    smoothProfile(nextInner, 0.1),
+    profile.opening,
+  )
+  return conserveClayVolume(raw, targetVolume)
 }
 
 export function changeHeight(profile: ClayProfile, amount: number): ClayProfile {
@@ -54,11 +67,37 @@ export function changeHeight(profile: ClayProfile, amount: number): ClayProfile 
   if (height === oldHeight) return cloneProfile(profile)
 
   const volumeScale = Math.sqrt(oldHeight / height)
-  const outerRadii = smoothProfile(
-    profile.outerRadii.map((radius) => clamp(radius * volumeScale, MIN_OUTER_RADIUS, MAX_OUTER_RADIUS)),
-    0.08,
-  )
-  return buildSafeProfile(height, outerRadii)
+  const outerRadii = smoothProfile(profile.outerRadii.map((radius) => radius * volumeScale), 0.08)
+  const innerRadii = smoothProfile(profile.innerRadii.map((radius) => radius * volumeScale), 0.08)
+  return buildProfile(height, outerRadii, innerRadii, profile.opening)
+}
+
+export function openCenter(profile: ClayProfile, amount: number): ClayProfile {
+  const targetVolume = estimateClayVolume(profile)
+  const opening = clamp(profile.opening + amount, 0, 1)
+  const innerRadii = profile.outerRadii.map((radius, index) => {
+    const t = index / Math.max(1, profile.outerRadii.length - 1)
+    const depth = smoothStep(INNER_FLOOR_HEIGHT / profile.height, 0.34, t)
+    return Math.max(0.025, (radius - MIN_WALL_THICKNESS) * depth * opening)
+  })
+  return conserveClayVolume(buildProfile(profile.height, profile.outerRadii, innerRadii, opening), targetVolume)
+}
+
+export function estimateClayVolume(profile: ClayProfile): number {
+  const last = Math.max(1, profile.outerRadii.length - 1)
+  const sliceHeight = profile.height / last
+  let volume = 0
+  for (let index = 0; index < last; index += 1) {
+    const areaA = Math.PI * Math.max(0, profile.outerRadii[index] ** 2 - profile.innerRadii[index] ** 2)
+    const areaB = Math.PI * Math.max(0, profile.outerRadii[index + 1] ** 2 - profile.innerRadii[index + 1] ** 2)
+    volume += (areaA + areaB) * 0.5 * sliceHeight
+  }
+  return volume
+}
+
+export function minimumWallThickness(profile: ClayProfile): number {
+  if (profile.opening < 0.2) return Math.min(...profile.outerRadii)
+  return Math.min(...profile.outerRadii.map((outer, index) => outer - profile.innerRadii[index]))
 }
 
 export function smoothProfile(radii: number[], strength: number): number[] {
@@ -78,14 +117,14 @@ export function sampleInnerRadius(profile: ClayProfile, normalizedHeight: number
   return sampleArray(profile.innerRadii, normalizedHeight)
 }
 
-export function buildSafeProfile(height: number, outerRadii: number[]): ClayProfile {
+export function buildSafeProfile(height: number, outerRadii: number[], opening = 1): ClayProfile {
   const safeOuter = outerRadii.map((radius) => clamp(radius, MIN_OUTER_RADIUS, MAX_OUTER_RADIUS))
   const innerRadii = safeOuter.map((radius, index) => {
     const t = index / Math.max(1, safeOuter.length - 1)
-    const opening = smoothStep(INNER_FLOOR_HEIGHT / height, 0.28, t)
-    return Math.max(0.025, (radius - MIN_WALL_THICKNESS) * opening)
+    const openingCurve = smoothStep(INNER_FLOOR_HEIGHT / height, 0.28, t)
+    return Math.max(0.025, (radius - MIN_WALL_THICKNESS) * openingCurve * clamp(opening, 0, 1))
   })
-  return { height: clamp(height, 0.28, MAX_HEIGHT), outerRadii: safeOuter, innerRadii }
+  return buildProfile(height, safeOuter, innerRadii, opening)
 }
 
 export function cutClayAt(profile: ClayProfile, centerIndex: number): CutResult | null {
@@ -98,8 +137,8 @@ export function cutClayAt(profile: ClayProfile, centerIndex: number): CutResult 
   const detachedOuter = resampleRange(profile.outerRadii, normalizedCut, 1, Math.max(12, PROFILE_SAMPLES - safeIndex))
 
   return {
-    remaining: buildSafeProfile(cutHeight, remainingOuter),
-    detached: buildSafeProfile(Math.max(0.22, profile.height - cutHeight), detachedOuter),
+    remaining: buildSafeProfile(cutHeight, remainingOuter, profile.opening),
+    detached: buildSafeProfile(Math.max(0.22, profile.height - cutHeight), detachedOuter, profile.opening),
     cutHeight,
   }
 }
@@ -119,7 +158,18 @@ export function interpolateClayProfile(from: ClayProfile, to: ClayProfile, progr
     const end = sampleArray(to.outerRadii, normalizedHeight)
     return start + (end - start) * t
   })
-  return buildSafeProfile(from.height + (to.height - from.height) * t, outerRadii)
+  const innerRadii = Array.from({ length: sampleCount }, (_, index) => {
+    const normalizedHeight = index / Math.max(1, sampleCount - 1)
+    const start = sampleArray(from.innerRadii, normalizedHeight)
+    const end = sampleArray(to.innerRadii, normalizedHeight)
+    return start + (end - start) * t
+  })
+  return buildProfile(
+    from.height + (to.height - from.height) * t,
+    outerRadii,
+    innerRadii,
+    from.opening + (to.opening - from.opening) * t,
+  )
 }
 
 export function isNarrowLimit(profile: ClayProfile, centerIndex: number): boolean {
@@ -152,6 +202,44 @@ function resampleRange(values: number[], start: number, end: number, count: numb
 
 function clampIndex(index: number, length: number): number {
   return Math.round(clamp(index, 0, length - 1))
+}
+
+function buildProfile(height: number, outerRadii: number[], innerRadii: number[], opening: number): ClayProfile {
+  const safeHeight = clamp(height, 0.28, MAX_HEIGHT)
+  const safeOuter = outerRadii.map((radius) => clamp(radius, MIN_OUTER_RADIUS, MAX_OUTER_RADIUS))
+  const safeInner = safeOuter.map((outer, index) => {
+    if (opening < 0.02) return 0.025
+    return clamp(innerRadii[index] ?? 0.025, 0.025, Math.max(0.025, outer - MIN_WALL_THICKNESS))
+  })
+  return { height: safeHeight, outerRadii: safeOuter, innerRadii: safeInner, opening: clamp(opening, 0, 1) }
+}
+
+function conserveClayVolume(profile: ClayProfile, targetVolume: number): ClayProfile {
+  let low = 0.72
+  let high = 1.38
+  let best = profile
+  for (let iteration = 0; iteration < 18; iteration += 1) {
+    const scale = (low + high) * 0.5
+    const candidate = buildProfile(
+      profile.height,
+      profile.outerRadii.map((radius) => radius * scale),
+      profile.innerRadii.map((radius) => radius * scale),
+      profile.opening,
+    )
+    best = candidate
+    if (estimateClayVolume(candidate) < targetVolume) low = scale
+    else high = scale
+  }
+  const bestVolume = estimateClayVolume(best)
+  if (bestVolume > 0 && Math.abs(bestVolume - targetVolume) / targetVolume > 0.001) {
+    return buildProfile(
+      best.height * (targetVolume / bestVolume),
+      best.outerRadii,
+      best.innerRadii,
+      best.opening,
+    )
+  }
+  return best
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {

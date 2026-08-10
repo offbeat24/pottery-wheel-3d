@@ -18,6 +18,7 @@ html, body, #app {
 }
 
 button { font: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid #ffe0a8; outline-offset: 3px; }
 
 .game-shell {
   position: relative;
@@ -39,6 +40,7 @@ button { font: inherit; }
 
 .scene-host canvas { cursor: grab; }
 .scene-host canvas.shaping { cursor: crosshair; }
+.scene-host canvas.glazing { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Ccircle cx='7' cy='7' r='5' fill='%23eef4dc' stroke='%2355382a' stroke-width='2'/%3E%3Cpath d='M11 11l10 10' stroke='%2355382a' stroke-width='3'/%3E%3C/svg%3E") 7 7, crosshair; }
 .scene-host canvas:active { cursor: grabbing; }
 
 .grain {
@@ -151,6 +153,87 @@ button { font: inherit; }
 .dimension-row { display: flex; justify-content: space-between; font-size: 12px; }
 .dimension-row + .dimension-row { margin-top: 7px; }
 .dimension-row span { opacity: .65; }
+
+.material-meter { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.14); }
+.material-meter > div:first-child { display: flex; justify-content: space-between; color: rgba(255,255,255,.66); font-size: 10px; }
+.material-meter strong { color: #fff6e5; }
+.material-track { height: 4px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.13); }
+.material-track i { display: block; width: 82%; height: 100%; border-radius: inherit; background: #8fc4c0; transition: width 180ms, background 180ms; }
+.material-track i.is-dry { background: #e18c62; }
+
+.craft-panel {
+  position: absolute;
+  z-index: 6;
+  top: 350px;
+  right: 34px;
+  width: 250px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 16px 28px 16px 16px;
+  color: #fff9ee;
+  background: rgba(55, 37, 28, .76);
+  box-shadow: 0 18px 42px rgba(55, 28, 16, .2);
+  backdrop-filter: blur(15px);
+}
+.craft-heading { display: flex; flex-direction: column; gap: 4px; }
+.craft-heading span, .tool-label { color: #e9c5a0; font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.craft-heading strong { font: 700 16px/1.25 "Gowun Batang", serif; }
+.stage-list { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 13px 0 0; padding: 0; list-style: none; }
+.stage-list li { min-width: 0; color: rgba(255,255,255,.34); text-align: center; }
+.stage-list i { display: grid; place-items: center; width: 19px; height: 19px; margin: 0 auto 5px; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; font-size: 8px; font-style: normal; }
+.stage-list span { display: block; overflow: hidden; font-size: 8px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.stage-list li.active { color: #ffe7c4; }
+.stage-list li.active i { color: #583323; border-color: #f2bd7c; background: #f2bd7c; box-shadow: 0 0 0 3px rgba(242,189,124,.12); }
+.stage-list li.done { color: #a9c19a; }
+.stage-list li.done i { border-color: #8dab7b; background: rgba(112,145,92,.28); }
+.stage-guide { min-height: 40px; margin: 12px 0; color: rgba(255,255,255,.62); font-size: 10px; line-height: 1.45; }
+.material-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.material-actions button { min-width: 0; height: 55px; padding: 6px 3px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px 13px 8px 8px; color: #fff8ea; background: rgba(255,255,255,.075); cursor: pointer; }
+.material-actions button:hover:not(:disabled) { border-color: rgba(255,218,173,.5); background: rgba(255,255,255,.13); }
+.material-actions button:disabled { opacity: .34; cursor: not-allowed; }
+.material-actions button.is-done { color: #b9d4aa; opacity: .7; }
+.material-actions span { display: block; height: 18px; font-size: 15px; line-height: 1; }
+.material-actions b { display: block; margin-top: 2px; font-size: 9px; }
+.material-actions small { display: block; margin-top: 2px; color: rgba(255,255,255,.45); font-size: 8px; }
+.handle-tools { max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; transition: max-height 200ms, margin 200ms, opacity 150ms; }
+.handle-tools.is-active { max-height: 126px; margin-top: 11px; opacity: 1; }
+.drying-tools { max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; transition: max-height 220ms, margin 220ms, opacity 180ms; }
+.drying-tools.is-active { max-height: 126px; margin-top: 12px; opacity: 1; }
+.drying-top { display: flex; justify-content: space-between; align-items: baseline; color: rgba(255,255,255,.6); font-size: 10px; }
+.drying-top strong { color: #f5cf9d; font-size: 11px; }
+.drying-track { height: 6px; margin-top: 9px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.12); }
+.drying-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #8fc4c0, #e4a06f); transition: width 120ms linear; }
+.drying-tools button { width: 100%; min-height: 36px; margin-top: 9px; border: 1px solid rgba(255,218,173,.36); border-radius: 8px 12px 8px 8px; color: #fff7e8; background: rgba(230,151,92,.2); font-weight: 800; cursor: pointer; }
+.drying-tools button:hover:not(:disabled) { background: rgba(230,151,92,.3); }
+.drying-tools button:disabled { color: rgba(255,255,255,.52); cursor: wait; }
+.drying-tools small { display: block; margin-top: 7px; color: rgba(255,255,255,.48); font-size: 9px; line-height: 1.35; }
+.game-shell:not([data-craft-stage="forming"]) .pedal-panel,
+.game-shell:not([data-craft-stage="forming"]) .pressure-row { display: none; }
+.game-shell:not([data-craft-stage="forming"]) .mode-panel { width: 610px; grid-template-columns: 118px 1fr; }
+.tool-row { display: grid; grid-template-columns: 25px 1fr 34px; align-items: center; gap: 6px; min-height: 27px; color: rgba(255,255,255,.58); font-size: 8px; }
+.tool-row input { width: 100%; height: 3px; margin: 0; accent-color: #df9b62; }
+.tool-row output { color: #ffe5c2; font-size: 8px; text-align: right; }
+.glaze-tools, .kiln-tools { max-height: 0; margin-top: 0; overflow: hidden; opacity: 0; transition: max-height 220ms, margin 220ms, opacity 180ms; }
+.glaze-tools.is-active { max-height: 112px; margin-top: 13px; opacity: 1; }
+.kiln-tools.is-active { max-height: 74px; margin-top: 13px; opacity: 1; }
+.glaze-options { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+.glaze-button { width: 22px; height: 22px; flex: none; padding: 0; border: 2px solid rgba(255,255,255,.28); border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(39,25,18,.18); }
+.glaze-button.celadon { background: #7f9d87; }
+.glaze-button.cream { background: #d8c4a0; }
+.glaze-button.iron { background: #563c32; }
+.glaze-button.unglazed { display: grid; place-items: center; color: #70412e; background: #c77c55; font-size: 8px; font-weight: 900; }
+.glaze-button.selected { border-color: #fff7e7; box-shadow: 0 0 0 3px rgba(255,255,255,.13); }
+.glaze-options strong { min-width: 0; margin-left: 2px; overflow: hidden; color: rgba(255,255,255,.72); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.coverage-row { display: grid; grid-template-columns: auto 1fr 25px; align-items: center; gap: 7px; margin-top: 10px; color: rgba(255,255,255,.5); font-size: 8px; }
+.coverage-track { height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.1); }
+.coverage-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: #a9c4a8; transition: width 100ms; }
+.coverage-row strong { color: #e9d9bf; font-size: 8px; text-align: right; }
+.brush-guide { display: block; margin-top: 6px; color: rgba(255,255,255,.46); font-size: 8px; line-height: 1.35; }
+.craft-panel.is-finishing .material-actions, .craft-panel.is-finishing .handle-tools { display: none; }
+.kiln-top { display: flex; justify-content: space-between; align-items: baseline; }
+.kiln-top strong { color: #ffd8a4; font-size: 13px; }
+.kiln-tools input { width: 100%; height: 4px; margin: 11px 0 0; accent-color: #df7d4d; cursor: pointer; }
+.kiln-scale { display: flex; justify-content: space-between; margin-top: 4px; color: rgba(255,255,255,.38); font-size: 8px; }
 
 .bottom-dock {
   position: absolute;
@@ -342,7 +425,7 @@ button { font: inherit; }
 .modal-layer[hidden] { display: none; }
 
 .intro-card, .result-card {
-  width: min(720px, 90vw);
+  width: min(800px, 90vw);
   border: 1px solid rgba(113,68,43,.16);
   border-radius: 10px 40px 10px 10px;
   background: #fff8e9;
@@ -352,7 +435,7 @@ button { font: inherit; }
 .eyebrow { margin: 0 0 8px; color: #a55334; font-size: 11px; font-weight: 800; letter-spacing: .2em; }
 .intro-card h2, .result-card h2 { margin: 0; font: 700 36px/1.2 "Gowun Batang", serif; letter-spacing: -.05em; }
 .intro-lead { margin: 12px 0 26px; color: #776456; font-size: 15px; line-height: 1.7; }
-.intro-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
+.intro-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
 .intro-step { min-height: 132px; padding: 18px; border: 1px solid #e3d5bd; border-radius: 6px 20px 6px 6px; background: #f5ead6; }
 .intro-step strong { display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 14px; border-radius: 50%; color: #fff7eb; background: #a95332; font-size: 12px; }
 .intro-step b { display: block; margin-bottom: 6px; font-size: 14px; }
@@ -390,6 +473,23 @@ button { font: inherit; }
 .legend i { display: inline-block; width: 16px; height: 2px; margin: 0 5px 3px 0; background: #a95332; }
 .legend .target-key { background: #7c8b62; }
 .result-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.result-finish { display: grid; grid-template-columns: 1.25fr .8fr .8fr; gap: 8px; margin-top: 16px; }
+.result-finish > div { display: flex; align-items: center; min-height: 48px; padding: 9px 11px; border: 1px solid #e2d5c0; border-radius: 8px 14px 8px 8px; background: #f7eddd; }
+.result-finish p { margin: 0; }
+.result-finish small { display: block; color: #967f6d; font-size: 8px; }
+.result-finish strong { display: block; margin-top: 2px; color: #59473b; font-size: 11px; }
+.finish-swatch { width: 28px; height: 28px; flex: none; margin-right: 9px; border: 3px solid #fff9ed; border-radius: 50%; background: var(--finish-color); box-shadow: 0 0 0 1px rgba(76,48,32,.16); }
+.result-view-dock { position: absolute; z-index: 8; left: 50%; bottom: 28px; display: flex; align-items: center; gap: 24px; min-width: 430px; padding: 13px 15px 13px 18px; transform: translateX(-50%); border: 1px solid rgba(255,255,255,.22); border-radius: 14px 24px 14px 14px; color: #fff8ea; background: rgba(54,36,27,.82); box-shadow: 0 18px 45px rgba(47,23,12,.25); backdrop-filter: blur(14px); }
+.result-view-dock[hidden] { display: none; }
+.result-view-dock div { display: grid; gap: 2px; }
+.result-view-dock span { color: #e5bd91; font-size: 8px; font-weight: 800; letter-spacing: .14em; }
+.result-view-dock strong { font: 700 15px/1.2 "Gowun Batang", serif; }
+.result-view-dock small { color: rgba(255,255,255,.48); font-size: 8px; }
+.result-view-dock button { height: 38px; margin-left: auto; padding: 0 15px; border: 0; border-radius: 7px 14px 7px 7px; color: #fff6e8; background: #a95332; font-size: 10px; font-weight: 800; cursor: pointer; }
+.game-shell[data-game-state="result-view"] .order-card,
+.game-shell[data-game-state="result-view"] .craft-panel,
+.game-shell[data-game-state="result-view"] .bottom-dock,
+.game-shell[data-game-state="result-view"] .game-actions { opacity: .08; pointer-events: none; transition: opacity 180ms; }
 
 @media (max-width: 1190px), (max-height: 730px) {
   .top-bar { top: 20px; left: 24px; right: 24px; }
@@ -397,6 +497,7 @@ button { font: inherit; }
   .silhouette-wrap { height: 150px; }
   .silhouette-wrap svg { height: 140px; }
   .work-readout { top: 98px; right: 24px; }
+  .craft-panel { top: 300px; right: 24px; transform: scale(.9); transform-origin: top right; }
   .bottom-dock { bottom: 18px; }
   .mode-panel { width: 500px; min-height: 92px; }
   .game-actions { right: 24px; bottom: 22px; }

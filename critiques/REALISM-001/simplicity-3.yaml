@@ -1,0 +1,110 @@
+critic: simplicity
+task_id: REALISM-001
+iteration: 3
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: tasks/REALISM-001.md
+      location: line 6 (profile), with bass.yaml lines 4-7
+    description: >-
+      서버와 운영 데이터를 명시적으로 제외한 Vite/Three.js 클라이언트 작업인데 task가
+      server profile을 선택하고 프로젝트 기본 profile에도 server가 항상 활성화되어 있다.
+      그 결과 agent guide가 API, DB migration, 인증·권한 등 이 작업과 무관한 서버 점검을
+      매번 합성한다.
+    impact: >-
+      위험에 비례해야 할 하네스가 불필요한 절차와 신호 잡음을 만들며, 실제로 서버 작업이
+      추가됐을 때 활성화 범위가 달라졌다는 사실도 드러나지 않는다.
+    verification: >-
+      npm run bass -- agent guide REALISM-001 --json을 실행해 project.profiles에 server가
+      포함되고, task의 forbidden scope에는 서버와 운영 데이터가 제외되어 있는지 비교한다.
+    suggested_fix: >-
+      기본 profile과 현재 task를 common/web 범위로 맞추고, 서버나 DB 변경이 실제 task
+      범위에 들어올 때만 server profile을 활성화한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: tasks/REALISM-001.md
+      location: lines 27-34 and 71-84
+    description: >-
+      하나의 task가 점토 부피 모델, 수분·RPM 물성, 중심 구멍 입력, 예비 흙 접합,
+      손잡이, 유약 텍스처, 소성 색, 결과 뷰와 HUD를 함께 소유한다. 서로 독립적으로
+      검토 가능한 여러 결과가 12개 acceptance criterion과 대규모 변경으로 묶였다.
+    impact: >-
+      회귀 원인과 책임 경계가 흐려지고 일부 기능만 되돌리거나 새 사용자 피드백으로 특정
+      계약만 다시 여는 일이 어려워진다. critic이 넓은 범위를 한 번에 검토하면서 중요한
+      문제를 놓칠 가능성도 커진다.
+    verification: >-
+      task의 What we are shipping과 acceptance criteria를 기능 축으로 분류하고 git diff
+      --stat을 확인한다. 물성, 입력, 마감, 결과 UI가 각각 독립 변경인데 한 task와 한
+      rollback 단위로 기록되어 있는지 확인한다.
+    suggested_fix: >-
+      후속 작업은 성형 도구·물성, 건조·유약·소성, 실패·재시작 애니메이션과 도움말처럼
+      하나의 플레이 가능한 결과 단위로 나누고 각 task에 좁은 acceptance와 rollback을 둔다.
+
+  - severity: medium
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/game/process.ts
+      location: lines 44-70 (finishForming, firePiece)
+    description: >-
+      finishForming은 수분을 항상 18%로 바꾸고 이후 updateMoisture는 forming 단계에서만
+      동작한다. 따라서 정상 경로로 glazing에 도달한 상태에서 firePiece의 moisture가
+      20%를 넘을 수 없으며 moisturePenalty 분기는 도달 불가능한 죽은 규칙이다.
+    impact: >-
+      코드가 소성 전 과습 위험을 모델링하는 것처럼 보이지만 실제 플레이에는 아무 효과가
+      없다. 향후 건조 기능을 추가할 때 기존 규칙을 신뢰하면 잘못된 동작과 중복 구현으로
+      이어질 수 있다.
+    verification: >-
+      createInitialCraftState에서 finishForming, applyGlaze, firePiece 순으로 정상 상태 전이를
+      실행하고 firePiece 직전 moisture가 항상 18인지 확인한다. updateMoisture가 leather-hard와
+      glazing 상태를 그대로 반환하는지도 확인한다.
+    suggested_fix: >-
+      현재 압축 공정을 유지한다면 죽은 moisturePenalty를 제거한다. 과습 소성을 실제로
+      다룰 때는 별도 건조 task에서 수분을 보존하는 상태 전이와 검증 가능한 위험 규칙을
+      함께 추가한다.
+
+  - severity: low
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: lines 327 and 434-475, with src/game/process.ts lines 54-56
+    description: >-
+      실제 유약 도포의 원천은 glazeMask인데 동일한 정보를 CraftState.glazeCoverage에도
+      복제한다. 포인터 입력마다 전체 mask를 reduce해 coverage를 갱신하고, 마감 변경과
+      초기화 때 두 상태를 수동으로 동기화한다.
+    impact: >-
+      도포 두께, 지움, 담금 같은 규칙을 확장할수록 mask와 coverage가 어긋날 경로가 늘고
+      매 포인터 이벤트마다 전체 mask 집계와 전체 texture 재렌더가 반복된다.
+    verification: >-
+      resetGlazeMask, paintGlazeAtUv, applyGlaze 호출 경로를 따라 glazeMask와
+      CraftState.glazeCoverage가 각각 어디서 초기화되고 갱신되는지 확인한다.
+    suggested_fix: >-
+      glazeMask를 단일 원천으로 두고 coverage를 파생값으로 계산하거나, 작은 surface 상태
+      하나가 mask와 painted count를 함께 소유하게 해 수동 동기화 경로를 제거한다.
+
+  - severity: low
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: src/main.ts
+      location: lines 69-74 and 907-919
+    description: >-
+      중심 열기가 선택 행동으로 바뀌었고 CraftState도 forming에서 시작하지만 진행 UI에는
+      중심 열기 또는 흙 준비라는 첫 단계가 항상 완료 상태로 남는다. 이를 맞추기 위해
+      실제 상태와 별개인 수동 stageIndex 보정도 유지한다.
+    impact: >-
+      존재하지 않는 공정 상태와 표시 전용 단계가 진행 모델을 복잡하게 하고, 도움말과 실제
+      도예 용어를 정리할 때 어느 단계가 진짜 상태인지 혼란을 만든다.
+    verification: >-
+      createInitialCraftState의 초기 stage와 stage-list markup, updateHud의 stageIndex를
+      비교한다. 앱 시작 직후 별도 준비 행동 없이 첫 항목이 done으로 표시되는지 확인한다.
+    suggested_fix: >-
+      중심 열기를 공정 단계에서 제거하고 성형 중 선택 도구로만 안내한다. 실제 흙 준비
+      플레이가 구현되기 전에는 표시 전용 단계와 수동 index 보정을 두지 않는다.

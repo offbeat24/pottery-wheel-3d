@@ -4,6 +4,23 @@ export interface ClayProfile {
   height: number
   outerRadii: number[]
   innerRadii: number[]
+  opening: number
+}
+
+export type CraftStage = 'forming' | 'drying' | 'leather-hard' | 'glazing' | 'fired'
+export type GlazeId = 'celadon' | 'cream' | 'iron'
+export type GlazeChoice = GlazeId | 'unglazed'
+
+export interface CraftState {
+  stage: CraftStage
+  moisture: number
+  clayMass: number
+  reserveLumps: number
+  handleAttached: boolean
+  glaze: GlazeChoice | null
+  glazeCoverage: number
+  kilnTemperature: number
+  firingQuality: number | null
 }
 
 export interface WheelState {

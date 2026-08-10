@@ -1,0 +1,118 @@
+critic: test
+task_id: REALISM-001
+iteration: 6
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 29-47, 97-112
+    description: >-
+      새 E2E는 건조 중간 수분, drying 단계 유지, 마감 잠금, 진행률, 본체 material color
+      변화를 검증한다. 그러나 수분과 RPM이 실제 성형 profile 변화와 구조 위험에 미치는
+      통합 효과, 추가 흙과 손잡이 material의 색 및 roughness 변화는 여전히 확인하지 않는다.
+      src/main.ts에서 shapingEfficiency 적용이나 accessoryMaterial 갱신을 제거해도 현재
+      assertion은 통과할 수 있다.
+    impact: >-
+      본체 건조 색은 변하더라도 수분과 물레 속도가 실제 성형에 작용하지 않거나, 수용
+      조건에 명시된 부속물의 색·거칠기가 건조 중 고정되는 회귀를 탐지하지 못한다.
+    verification: >-
+      E2E가 성형 중 RPM과 opening 변화는 확인하지만 동일 입력의 속도·수분별 profile delta를
+      비교하지 않고, 건조 중 data-clay-color만 읽으며 accessory color와 roughness는 읽지
+      않는지 대조한다.
+    suggested_fix: >-
+      동일 성형 입력을 저속·적정속도와 건조·적정·과습에서 실행해 실제 profile delta와
+      구조 위험 차이를 검증한다. 본체와 accessory material의 color·roughness를 테스트 가능한
+      값으로 노출해 건조 전·중간·가죽경도에서 함께 변하는지 확인하고 RPM·수분 경계값을
+      테이블 테스트로 추가한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 84-120
+    description: >-
+      흙 붙이기는 reserve와 높이·폭 텍스트만, 손잡이는 완료 class와 slider output 텍스트만,
+      유약은 coverage 숫자가 0보다 큰지만 확인한다. src/main.ts의 addVisibleClayLump,
+      createHandleMesh, rebuildHandleGeometry, renderSurfaceTexture가 no-op이어도 현재 assertion을
+      모두 만족할 수 있다. 첨부 스크린샷은 자동 assertion이 아니다.
+    impact: >-
+      별도 흙덩이, 손잡이 형상 조절, 표면에 직접 남는 유약이라는 3D 핵심 구현이 사라져도
+      E2E가 성공할 수 있다.
+    verification: >-
+      각 행동 뒤 테스트가 mesh 존재·위치, handle transform, texture 또는 국소 도포 결과를
+      읽지 않고 DOM 텍스트와 상태 속성만 확인하는지 검토한다.
+    suggested_fix: >-
+      scene의 최소 mesh count·handle transform·paint mask를 테스트 가능하게 노출하거나 순수
+      모델로 분리한다. 흙덩이 별도 mesh와 +180g, 두 개 소비와 0개 경계, 회전 중 disabled,
+      slider 전후 handle bounding box, restart 제거, 유약 stroke의 국소 texture와 선택 변경 시
+      reset을 검증한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 59-80
+    description: >-
+      소성 테스트는 청자 적정 온도와 900도 점수, 백유 20%와 95% 도포율, 색상 값의 단순
+      inequality만 검사하며 E2E는 청자 900도 한 경로뿐이다. UI가 항상 같은 material 색을
+      쓰거나 결과 swatch와 3D 표면이 온도를 무시해도 pure 함수 테스트는 통과한다. 0%와
+      100%, 900도와 1300도 clamp, 세 유약과 무유약, 유약 변경 시 도포율 reset, 낮은
+      도포율의 바탕 노출이 검증되지 않는다.
+    impact: >-
+      900~1300도 소성에서 유약 종류·도포율·온도에 따라 최종 색과 점수가 달라진다는 수용
+      조건이 실제 결과 화면까지 보장되지 않는다.
+    verification: >-
+      src/main.ts의 material 및 결과 연결을 제거하거나 한 색으로 고정해도
+      tests/process.test.ts의 pure color 함수 assertion은 유지되는지 확인한다.
+    suggested_fix: >-
+      모든 glaze choice에 저온·적정·고온과 coverage 0·1을 적용하는 테이블 테스트로 점수
+      ordering과 색상 관계를 명시한다. E2E 또는 렌더 단위에서 실제 clayMaterial, texture,
+      결과 요약이 동일 상태를 반영하는지도 확인한다.
+
+  - severity: low
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 133-150
+    description: >-
+      3D 전체 보기에서 카메라 회전이나 줌을 실제 조작하지 않고 dock 가시성만 확인한다.
+      retry 뒤 바로 restart를 두 번 누르며 opening, moisture, drying 상태, lumps, handle, glaze,
+      coverage, kiln이 모두 초기화되는지 보지 않는다. next-button과 주문 순환도 실행하지
+      않는다.
+    impact: >-
+      수용 조건에 명시된 기존 카메라, 재시작, 주문 순환 회귀와 dryingActive 초기화가 깨져도
+      현재 E2E가 탐지하지 못한다.
+    verification: >-
+      E2E 후반부에서 result-view 상태와 dock visibility 외 카메라 변화 assertion이 없고,
+      restart 뒤 RPM과 mode만 확인하며 drying 상태와 next-button 사용 검증이 없는지 확인한다.
+    suggested_fix: >-
+      result-view 드래그와 휠 전후 카메라 상태 또는 렌더 변화를 검증하고, 건조 중 restart와
+      retry의 전체 state 초기화 및 다음 주문 id·ghost 변경과 마지막 주문에서 첫 주문으로의
+      순환을 독립 검증한다.
+
+  - severity: low
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 49-79, 97-112
+    description: >-
+      새 테스트는 건조 progress의 aria 값과 본체 색 변화를 확인하지만 1440x900 HUD 전체는
+      요소의 toBeVisible, canvas 중앙 픽셀 alpha, data 속성, 첨부 스크린샷에만 의존한다.
+      첨부 이미지는 비교 assertion이 아니므로 카드가 viewport 밖으로 잘리거나 서로 겹치고
+      단계·상태 텍스트가 읽히지 않아도 테스트가 통과할 수 있다.
+    impact: >-
+      제작 단계, 재료, RPM, 건조 진행, 유약, 가마 상태가 1440x900에서 읽혀야 한다는 HUD
+      수용 조건에 레이아웃 자동 회귀 방어가 없다.
+    verification: >-
+      주요 HUD 카드의 bounding box, 겹침 또는 visual snapshot 비교가 없고 screenshot이
+      testInfo attachment로만 저장되는지 확인한다.
+    suggested_fix: >-
+      주요 카드 bounding box가 viewport 안에 있고 서로 겹치지 않는지 검사하거나, 결정적인
+      공정 상태에서 안정된 visual snapshot을 추가해 레이아웃과 가독성 회귀를 감지한다.

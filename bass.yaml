@@ -4,7 +4,6 @@ bass:
   profiles:
     - common
     - web
-    - server
 
 project:
   name: pottery-wheel-3d

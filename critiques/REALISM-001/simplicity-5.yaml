@@ -1,0 +1,91 @@
+critic: simplicity
+task_id: REALISM-001
+iteration: 5
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: tasks/REALISM-001.md
+      location: lines 27-35 and 72-87
+    description: >-
+      REALISM-001은 점토 부피 모델, 수분·RPM 물성, 중심 구멍 입력, 예비 흙 접합,
+      손잡이, 건조, 유약 텍스처, 소성 색, 결과 뷰와 HUD를 한 task와 rollback 단위로
+      소유한다. 최종 건조 UI의 stage 기반 숨김, progressbar ARIA와 E2E 색상 관측값은
+      기존 상태에서 파생되는 작은 보완이라 새 기능 복잡성을 만들지는 않지만, 전체 task의
+      넓은 책임 범위는 그대로다.
+    impact: >-
+      독립적인 공정 기능의 회귀 원인과 책임 경계가 흐려지고 특정 기능만 검토하거나
+      되돌리기 어렵다. 후속 현실성 피드백까지 같은 task에 계속 추가하면 critic과 검증의
+      초점도 계속 약해진다.
+    verification: >-
+      What we are shipping과 acceptance criteria를 기능 축으로 분류하고 git diff --stat을
+      확인한다. 물성, 입력, 접합, 건조, 마감, 결과 UI가 독립 결과인데 하나의 task와
+      rollback으로 기록되어 있는지 확인한다.
+    suggested_fix: >-
+      현재 수직 단위가 사람 검토에 도달하면 더 확장하지 말고 닫는다. 이후 작업은 성형
+      도구·물성, 유약·소성, 실패·재시작 애니메이션과 도움말처럼 하나의 플레이 가능한
+      결과 단위로 새 task를 만들어 좁은 acceptance와 rollback을 둔다.
+
+  - severity: low
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: lines 341 and 449-489, with src/game/process.ts lines 67-69
+    description: >-
+      실제 유약 도포의 원천은 glazeMask인데 같은 정보를 CraftState.glazeCoverage에도
+      복제한다. 포인터 입력마다 전체 mask를 reduce해 coverage를 갱신하고, 마감 변경과
+      초기화 때 두 상태를 수동으로 동기화한다.
+    impact: >-
+      도포 두께, 지움, 담금 같은 규칙을 확장할수록 mask와 coverage가 어긋날 경로가 늘고
+      매 포인터 이벤트마다 전체 mask 집계와 texture 재렌더가 반복된다.
+    verification: >-
+      resetGlazeMask, paintGlazeAtUv, applyGlaze 호출 경로를 따라 glazeMask와
+      CraftState.glazeCoverage가 각각 어디서 초기화되고 갱신되는지 확인한다.
+    suggested_fix: >-
+      glazeMask를 단일 원천으로 두고 coverage를 파생값으로 계산하거나, 작은 surface 상태
+      하나가 mask와 painted count를 함께 소유하게 해 수동 동기화 경로를 제거한다.
+
+  - severity: low
+    confidence: confirmed
+    category: scope
+    evidence:
+      file: src/main.ts
+      location: lines 71-76 and 930-942
+    description: >-
+      중심 열기가 선택 행동으로 바뀌었고 CraftState도 forming에서 시작하지만 진행 UI에는
+      중심 열기 또는 흙 준비라는 첫 단계가 항상 완료 상태로 남는다. drying과
+      leather-hard를 세 번째 표시 칸에 함께 넣기 위해 실제 상태와 별개인 stageIndex
+      보정도 유지한다.
+    impact: >-
+      존재하지 않는 공정 상태와 표시 전용 단계가 진행 모델을 복잡하게 하고, 실제 건조와
+      가죽경도 상태가 추가된 뒤에도 어느 단계가 진짜 상태인지 혼란을 만든다.
+    verification: >-
+      createInitialCraftState의 초기 stage와 stage-list markup, updateHud의 stageIndex를
+      비교한다. 앱 시작 직후 별도 준비 행동 없이 첫 항목이 done으로 표시되고 drying과
+      leather-hard가 같은 표시 칸을 공유하는지 확인한다.
+    suggested_fix: >-
+      중심 열기를 공정 단계에서 제거하고 성형 중 선택 도구로만 안내한다. 진행 UI는 실제
+      CraftStage에 대응하는 항목만 두거나, drying과 leather-hard를 의도적으로 한 공정으로
+      묶는 명시적 표시 모델을 사용한다.
+
+  - severity: low
+    confidence: confirmed
+    category: maintainability
+    evidence:
+      file: src/main.ts
+      location: lines 977-984 (finishButton visibility and drying branch)
+    description: >-
+      drying 단계에서는 finishButton을 hidden으로 만든 직후 같은 updateHud 호출에서 버튼을
+      disabled 처리하고 사용자가 볼 수 없는 건조 상태 문구까지 매 프레임 갱신한다.
+    impact: >-
+      숨긴 컨트롤의 표시 상태를 계속 관리하는 죽은 UI 분기가 남아 건조 단계 행동의 단일
+      원천이 dryingButton인지 finishButton인지 코드상 경계를 흐린다.
+    verification: >-
+      craft.stage가 drying일 때 finishButton.hidden이 true가 된 뒤 같은 조건 분기에서
+      disabled와 textContent가 다시 설정되는지 확인한다.
+    suggested_fix: >-
+      drying 상태에서는 finishButton을 숨기는 결정만 유지하고 해당 disabled/text 분기를
+      제거한다. 다음 단계의 문구는 leather-hard 분기에서 다시 설정하면 된다.
