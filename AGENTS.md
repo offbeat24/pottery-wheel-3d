@@ -39,6 +39,18 @@ bootstrap 자체로 제품 코드나 tracked file을 바꾸지 마라. 사용자
 5. UI 작업은 실제 1440×900 렌더링과 독립 Design/Test/Simplicity critic을 거친다. 서버·DB 작업은 Test/Simplicity와 보안·데이터 위험 검토를 거친다.
 6. 검토 전 `npm run verify`와 `npm run bass -- gate pre-review <task-id>`를 실행한다.
 
+## Feature Backlog 병렬 작업 계약
+
+`FEATURE_BACKLOG.md`의 각 항목은 서로 다른 팀원이 동시에 작업할 수 있는 독립 작업이다.
+
+1. 각 항목은 작업 시작 시점의 최신 `codex/realism-001`에서 별도 branch/worktree를 만든다. 다른 feature branch를 부모로 삼거나 여러 backlog 항목을 한 branch에 섞지 않는다.
+2. branch 하나는 `tasks/<TASK-ID>.md`, 해당 기능 코드, 해당 기능 전용 테스트와 BASS record/critic만 소유한다. 다른 task 파일의 상태나 기록은 바꾸지 않는다.
+3. 새 테스트는 가능하면 `tests/<task-id>.test.ts`와 `e2e/<task-id>.spec.ts`처럼 작업별 파일로 추가한다. 공용 테스트 파일에 여러 기능의 시나리오를 누적하지 않는다.
+4. `src/main.ts`, `src/styles.css`, `DESIGN.md`, `FEATURE_BACKLOG.md`, `package.json`, lockfile은 충돌 가능성이 높은 공유 파일이다. 기능별 모듈·스타일 파일을 우선하고 공유 파일 수정은 연결에 필요한 최소 diff로 제한한다.
+5. `FEATURE_BACKLOG.md`의 순서·완료 상태·다음 추천 작업은 feature branch에서 수정하지 않는다. `codex/realism-001` 통합 담당자가 merge 직후 한 번만 갱신한다. 제품 방향이 실제로 바뀌는 작업만 `DESIGN.md`를 수정한다.
+6. 검토 직전 최신 `codex/realism-001`을 feature branch에 반영하고 검증한다. 통합은 한 branch씩 수행하며, merge 뒤 아직 열린 branch들은 새 부모를 반영해 충돌을 자기 branch에서 해결한다.
+7. 공유 파일 변경이 불가피하면 구현 전에 예상 변경 파일을 task의 `Relevant context` 또는 작업 기록에 남기고, 같은 파일을 수정 중인 팀원이 있으면 먼저 알린다.
+
 ## 원천
 
 - 동적 계약: `npm run bass -- agent guide --json`
