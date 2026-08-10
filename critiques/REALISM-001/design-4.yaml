@@ -1,0 +1,56 @@
+critic: design
+task_id: REALISM-001
+iteration: 4
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 892-900 and 972-984 (drying hints and primary action state)
+    description: >-
+      건조 상태에서는 실제 행동인 `건조 시작`이 우측 공정 패널의 작은 버튼으로 이동하지만,
+      기존의 큰 우하단 primary 버튼은 `건조를 시작해주세요`라는 문구로 비활성화된다. 동시에
+      하단에는 `FOOT PEDAL`, `SPACE`, `Space로 가속`, `손 압력 안정`이 그대로 남는데 Space와
+      성형 압력은 drying 단계에서 작동하지 않는다. 1440x900의 82% 대기 및 약 52% 진행
+      화면에서 이 상충하는 위계와 안내를 직접 확인했다.
+    impact: >-
+      사용자는 가장 큰 버튼이 건조 시작 행동이라고 예상하지만 클릭할 수 없고, 실제 버튼을
+      작은 공정 카드 안에서 다시 찾아야 한다. 건조 중에도 Space와 손 압력이 유효한 것처럼
+      보여 상태 전환의 완결성과 다음 행동의 명확성이 약해진다.
+    verification: >-
+      82%에서 성형 마치기를 누르고 키보드와 마우스로 다음 행동을 찾는다. 우하단의 큰
+      `건조를 시작해주세요` 버튼은 비활성이고 우측 카드의 작은 `건조 시작`만 작동하는지,
+      진행 중 Space를 눌러도 반응이 없는데 FOOT PEDAL 안내가 유지되는지 확인한다.
+    suggested_fix: >-
+      drying 대기에서는 기존 우하단 primary 버튼 자체를 활성 `건조 시작`으로 재사용하거나
+      공정 패널 버튼과 하나의 행동으로 연결한다. 건조 중에는 pedal/pressure 영역을 건조
+      진행·현재 수분·가죽경도 목표 정보로 교체하거나 명확히 숨겨 한 상태에 하나의 주행동과
+      유효한 조작만 남긴다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 90-95 and 952-958 (drying panel markup and visibility state)
+    description: >-
+      건조 진행률은 일반 div와 i의 width, strong 텍스트로만 표현되어 progressbar 의미와
+      aria-valuenow가 없다. 또한 가죽경도 완료 시 `.is-active`만 제거해 CSS의 max-height:0과
+      opacity:0으로 접을 뿐 DOM의 `건조 대기`, 비활성 `건조 시작`, 설명은 접근성 트리에
+      계속 남는다. 실제 18% 완료 DOM에서 이 오래된 건조 대기 정보가 활성 유약 선택 앞에
+      노출되는 것을 확인했다.
+    impact: >-
+      화면을 보는 사용자는 연속 건조와 완료를 이해할 수 있지만 보조기술 사용자는 진행률을
+      상태값으로 인식하지 못한다. 완료 후에는 `03 · 가죽경도`와 `건조 대기`를 연이어 듣게
+      되어 현재 상태와 가능한 다음 행동을 잘못 판단할 수 있다.
+    verification: >-
+      접근성 트리에서 82% 대기, 약 50% 진행, 18% 완료를 순서대로 확인한다. 진행 막대에
+      progressbar role/value가 없는지, 완료 뒤 보이지 않는 drying-tools의 `건조 대기`와
+      disabled 버튼이 계속 읽히는지 확인한다.
+    suggested_fix: >-
+      건조 막대를 native progress 또는 role=progressbar, aria-valuemin/max/now로 구현하고
+      수분과 구분되는 접근 가능한 이름을 준다. 진행 중 값 알림은 과도하지 않게 구간별로
+      갱신하고 완료를 status로 알린다. drying 단계가 아니면 패널에 hidden 또는 inert를
+      적용해 시각·접근성 트리·탭 순서를 함께 제거한다.

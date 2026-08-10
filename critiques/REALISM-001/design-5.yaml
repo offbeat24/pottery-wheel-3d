@@ -1,0 +1,30 @@
+critic: design
+task_id: REALISM-001
+iteration: 5
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/styles.css
+      location: lines 210-212 (drying-only control visibility)
+    description: >-
+      pedal과 손 압력 UI를 숨기는 selector가 `data-craft-stage="drying"`에만 적용된다. 실제
+      1440x900에서 수분 18%로 건조가 완료되어 `03 · 가죽경도`가 되는 순간 FOOT PEDAL,
+      SPACE, `Space로 가속 · 중속이 가장 안정적`, `손 압력 안정`이 다시 나타난다. 그러나
+      src/main.ts 1270-1275의 Space 입력은 forming 단계에서만 작동하고 가죽경도에서는 손
+      압력도 더 이상 유효한 상태가 아니다.
+    impact: >-
+      건조 진행 중에는 불필요한 조작이 잘 정리되지만 완료 순간 다시 작동하지 않는 조작을
+      주행동처럼 보여준다. 사용자는 가죽경도 작품을 다시 물레로 성형할 수 있다고 오해하거나
+      마감 선택보다 Space를 먼저 시도할 수 있어 건조→마감 전환의 상태 완결성이 깨진다.
+    verification: >-
+      건조 중 약 50% 화면에서 pedal과 pressure가 보이지 않는지 확인한 뒤 수분 18%까지
+      기다린다. 가죽경도 완료와 동시에 두 UI가 다시 나타나는지, Space를 눌러도 물레가
+      가속되지 않는지 확인한다.
+    suggested_fix: >-
+      pedal과 pressure는 drying만이 아니라 `craft.stage !== forming`인 모든 제작 단계에서
+      숨기거나 해당 단계에 유효한 정보로 교체한다. 가죽경도에서는 카메라 조작 안내는
+      유지하되 하단 상태 영역을 `표면 마감 선택`과 유약 후보 안내로 바꿔 다음 행동과
+      일치시킨다.

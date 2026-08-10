@@ -1,0 +1,164 @@
+critic: design
+task_id: REALISM-001
+iteration: 3
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 478-501 (paintGlazeFromPointer, updateClayMaterial)
+    description: >-
+      유약 좌드래그의 raycast 대상이 clayMesh 하나뿐이라 사용자가 손잡이와 아래에 붙인
+      흙덩이에 직접 유약을 칠할 수 없다. 반대로 본체 도포율이 55%를 넘으면 두 부속물은
+      실제로 칠한 위치와 무관하게 유약색 전체로 한 번에 바뀐다. 이는 DESIGN.md의
+      "실제 맞은 표면" 직접 도포 원칙과 시각적 인과를 어긴다.
+    impact: >-
+      손잡이가 있는 작품을 만들수록 마우스 자국과 소성 결과가 서로 맞지 않는다. 사용자는
+      칠할 수 없는 표면이 왜 갑자기 유약색으로 변했는지 이해할 수 없고 완성품을 의도대로
+      마감할 수 없다.
+    verification: >-
+      손잡이와 예비 흙을 붙이고 유약 단계로 이동한다. 손잡이를 좌드래그해도 도포율과
+      색이 변하지 않는지 확인한 뒤 본체 도포율을 55% 이상으로 올려 부속물이 일괄 변하는지
+      확인한다.
+    suggested_fix: >-
+      본체·손잡이·덧댄 흙을 하나의 paintable surface 집합으로 raycast하고 각 메시의 UV
+      또는 공간 기반 마스크에 붓 자국을 저장한다. 전체 도포율도 실제 칠해진 총 표면적으로
+      계산하고 부속물 임계치 일괄 도색을 제거한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/game/process.ts
+      location: lines 44-47 (finishForming)
+    description: >-
+      화면은 03단계를 "건조·마감"으로 제시하지만 성형 마치기를 누르는 즉시 수분이 현재
+      값과 무관하게 18%가 되고 leather-hard 상태로 전환된다. 건조 행동, 경과, 과습 경고,
+      되돌림이 없고 src/main.ts 1077-1082의 토스트만 잠깐 노출된다.
+    impact: >-
+      사용자는 성형 중 관리한 수분이 마감에 어떻게 이어지는지 학습할 수 없으며, 제작 단계
+      진행 표시가 실제 플레이 가능한 상태가 아니라 장식처럼 느껴진다. 특히 100%로 적신
+      직후에도 즉시 유약 준비가 되는 것은 현실적인 제작 루프의 핵심 인과를 약화한다.
+    verification: >-
+      수분을 100%까지 올리고 물레를 멈춘 뒤 성형 마치기를 누른다. 별도 건조 입력이나
+      전환 없이 수분이 즉시 18%가 되고 유약 선택 UI가 활성화되는지 확인한다.
+    suggested_fix: >-
+      leather-hard 이전에 관찰 가능한 건조 상태와 명시적 행동을 둔다. 현재 수분에 따른
+      예상 시간·갈라짐/변형 위험을 표시하고, 충분히 마른 뒤에만 다듬기나 초벌 단계로
+      이동하게 하며 압축 진행을 택하더라도 상태 변화 애니메이션과 결과 원인을 남긴다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 1291-1297 (resultViewButton handler)
+    description: >-
+      "3D 전체 보기"는 카메라 거리와 pitch만 바꾸고 작업 중 양손, 물레, 주변 HUD를 그대로
+      둔다. 최신 1440x900 근거 playwright-report/data/959ec123b5f0c9b322eb8c9cc488203edb138c84.png에서도
+      양손과 물레가 완성품의 좌우 및 하단을 차지하고 8% 투명 HUD가 배경에 남는다.
+    impact: >-
+      손잡이 접합부, 아래쪽 덧댄 흙, 후면 유약 누락을 방해물 없이 검사한다는 DESIGN.md의
+      전체 보기 목적을 충족하지 못한다. 완성품보다 배경 손과 흐릿한 패널이 계속 시선을
+      분산시킨다.
+    verification: >-
+      소성 결과에서 3D 전체 보기를 누르고 작품을 한 바퀴 회전한다. 손과 물레가 시야를
+      가리고 HUD 윤곽이 남으며 작품 하단을 독립적으로 확인하기 어려운지 점검한다.
+    suggested_fix: >-
+      결과 검사 모드에서 손·접촉 표시·주문 ghost와 불필요 HUD를 숨기고 작품만 중립 받침대
+      또는 전용 검사 장면에 배치한다. 카메라 target/zoom을 작품 bounding box로 맞추고
+      상하 회전 범위를 넓혀 바닥과 손잡이 접합부까지 볼 수 있게 한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 440-475 (renderSurfaceTexture, paintGlazeAtUv)
+    description: >-
+      유약 마스크가 128x64 이진 셀이고 각 셀을 불투명 fillRect로만 그려 붓 압력, 중첩,
+      가장자리 농도 차이가 없다. 최신 전체 보기 렌더에서 10% 청자 유약 경계가 큰 계단형
+      띠와 삼각 조각처럼 보여 직접 칠한 붓 자국보다 깨진 저해상도 선택 영역에 가깝다.
+    impact: >-
+      마우스로 직접 바른다는 핵심 행동의 품질이 결과 화면에서 가장 먼저 무너진다. 낮은
+      도포율이 실제 유약의 얇음·핀홀·흐름이 아니라 단순한 색상 미도포로만 읽힌다.
+    verification: >-
+      유약을 선택하고 도자기 전면을 대각선으로 한 번만 드래그한 뒤 1440x900 전체 보기에서
+      경계를 확대한다. 가장자리가 계단형이고 모든 칠해진 영역의 농도와 광택이 동일한지
+      확인한다.
+    suggested_fix: >-
+      부드러운 alpha 브러시와 연속 경로 보간을 사용하고 중첩 횟수 또는 두께를 누적한다.
+      소성 후에는 낮은 두께에서 바탕 비침, 색 농도 차이, 일부 핀홀을 결정론적으로 표현해
+      도포율이 표면 현상으로 보이게 한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 127-159 (intro/result modal markup)
+    description: >-
+      intro와 결과 오버레이는 시각적으로 modal이지만 role=dialog, aria-modal, 제목 연결,
+      진입 시 focus 이동과 focus trap이 없다. Three.js canvas도 tabindex나 대체 조작 설명이
+      없는데 시작 시 src/main.ts 1254에서 focus()만 호출한다.
+    impact: >-
+      키보드와 보조기술 사용자는 결과가 열렸는지 구조적으로 알기 어렵고, 가려진 배경의
+      다시 시작/성형 버튼으로 focus가 이동할 수 있다. canvas 직접조작의 초점 위치와 조작법도
+      전달되지 않는다.
+    verification: >-
+      키보드만 사용해 시작과 결과까지 Tab 순서를 따라가고 접근성 트리에서 두 오버레이의
+      role/name을 확인한다. 결과가 열린 후 focus가 결과 제목 또는 첫 행동으로 이동하는지,
+      배경 컨트롤에 접근 가능한지 확인한다.
+    suggested_fix: >-
+      오버레이에 role=dialog, aria-modal=true, aria-labelledby를 부여하고 열릴 때 제목 또는
+      첫 행동으로 focus를 이동한 뒤 닫을 때 복원한다. canvas에는 tabindex와 상태별
+      aria-describedby를 제공하고 비포인터 대체 조작 또는 도움말 진입점을 마련한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/styles.css
+      location: lines 179-223 (craft process controls)
+    description: >-
+      핵심 단계명과 유약 설명이 8~10px이고 비활성 단계는 반투명 흰색 34%, 유약 선택
+      원형 버튼은 22x22px이다. 최신 1440x900 성형 렌더
+      playwright-report/data/2cb2c82bae3533a81083cbc0221d5bf782a64cb8.png에서도 공정 단계와
+      키 힌트가 주변 HUD보다 현저히 작고 흐리며, 22px 색상 원은 권장 포인터 목표 크기의
+      절반 수준이다.
+    impact: >-
+      제작 단계와 다음 행동을 숫자를 읽지 않고 파악해야 한다는 DESIGN.md의 HUD 목표가
+      약한 시력, 고해상도 디스플레이, 색각 차이가 있는 사용자에게 무너진다. 유약 선택의
+      오클릭 가능성도 높다.
+    verification: >-
+      1440x900 100% 배율과 1280x720에서 공정 패널을 읽고, 키보드 focus 및 마우스로 각
+      유약 원형 버튼을 선택한다. 최소 글자 크기, 텍스트 대비, 44x44px 포인터 목표 기준과
+      비교한다.
+    suggested_fix: >-
+      공정 설명은 최소 12px, 보조 텍스트는 11px 이상으로 올리고 비활성 텍스트 대비를
+      확보한다. 유약 버튼의 실제 hit area를 최소 44x44px로 넓히고 색상 옆에 상시 보이는
+      도예 용어 라벨을 둔다.
+
+  - severity: low
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 53-119 and 833-955 (persistent HUD and microcopy)
+    description: >-
+      A SMALL POTTERY STUDIO, LIVE MATERIAL, MAKING PROCESS, CONTROL MODE, FOOT PEDAL,
+      GLAZE, KILN 같은 영문 장식 레이블과 "흙과 조금 더 이야기를" 같은 시적 문장이
+      실제 도예 용어·조작 설명과 한 화면에 섞여 있다. 별도 도움말이 없어 단계 안내 문단과
+      하단 도크가 용어 설명, 입력 설명, 상태 경고를 동시에 담당한다.
+    impact: >-
+      초보자는 "마감", "유약", "소성", "막힌 덩이"의 의미를 배울 수 없고 숙련자는
+      제품이 현실적인 공정어와 분위기 문구 중 어느 쪽을 정보 기준으로 삼는지 혼란스럽다.
+    verification: >-
+      처음 플레이하는 사용자에게 성형-건조-시유-소성 순서를 현재 화면 용어만으로
+      설명하게 하고, 각 영문 레이블이 행동 결정에 어떤 정보를 주는지 확인한다.
+    suggested_fix: >-
+      화면 본문은 물레 성형·가죽경도 건조·다듬기·시유·초벌/재벌 소성처럼 일관된 실제
+      도예 용어로 통일하고, 짧은 정의와 조작법은 우상단 도움말 패널에 계층화한다. 시적
+      문구는 브랜드 영역과 결과 격려에만 제한한다.

@@ -1,0 +1,158 @@
+critic: test
+task_id: REALISM-001
+iteration: 3
+no_issues_found: false
+findings:
+  - severity: high
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 29-41
+    description: >-
+      현재 핵심 E2E가 중심 구멍 검증에서 실패한다. npm run test:e2e를 두 번 실행한 결과
+      모두 line 41에서 Expected > 0.1, Received 0.1로 종료됐다. 테스트가 고정 650ms 가속과
+      600ms 우클릭 뒤 절대 임계치 > 0.1을 요구해, 실제로 구멍이 0에서 0.10으로 커진
+      정상 변화도 실패로 처리한다. src/main.ts 833-840은 상태를 소수 둘째 자리 문자열로
+      노출하므로 프레임과 성형 모드 진입 시점에도 민감하다.
+    impact: >-
+      npm run verify와 pre-review의 필수 E2E 근거가 red 상태이며, 핵심 직접 조작 회귀를
+      안정적으로 판별할 수 없다. 구현 실패와 테스트 타이밍 실패를 구분하지 못한다.
+    verification: >-
+      npm run test:e2e를 실행한다. 현재 변경분에서 두 번 연속 e2e/quality.spec.ts:41의
+      opening 임계치 실패가 재현됐다.
+    suggested_fix: >-
+      조작 전 opening을 기록하고 shaping 모드와 목표 RPM 진입을 poll한 뒤 opening이 이전
+      값보다 커졌는지 비교한다. 또는 목표 opening에 도달할 때까지 expect.poll과 입력 유지
+      조건을 결합한다. 핵심 E2E가 안정적으로 green이 되기 전 gate를 통과시키지 않는다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 23-27, 34-46, 96-97
+    description: >-
+      구멍이 0인 상태에서는 성형 마치기 버튼이 enabled인지까지만 확인하고, 실제 마감 클릭은
+      구멍을 연 다음 수행한다. 따라서 표시상 버튼은 활성화돼도 finishWork가 opening=0을
+      거부하거나 leather-hard 전환이 실패하는 구현이 테스트를 통과할 수 있다.
+    impact: >-
+      수용 조건의 핵심인 "구멍 없이도 일반 성형과 마감을 진행할 수 있다"가 실제 사용자
+      경로로 검증되지 않는다.
+    verification: >-
+      e2e/quality.spec.ts에서 최초 finish-action assertion 이후 구멍 조작이 먼저 실행되고,
+      leather-hard 전환 assertion은 opening을 키운 뒤에만 수행되는지 확인한다.
+    suggested_fix: >-
+      별도 E2E에서 시작 직후 물레 정지와 data-opening=0을 확인하고 성형 마치기를 실제로
+      클릭해 leather-hard까지 전환되는지 검증한다. 구멍 확대·축소 조작은 독립 테스트로
+      분리한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 20-30, 66-68
+    description: >-
+      수분과 RPM 테스트는 pure 함수의 일부 지점과 젖은색·마른색이 서로 다르다는 것만
+      확인한다. E2E도 물을 100%로 만든 뒤 실제 profile 변화, 시간 경과 건조, 과건조·과습
+      위험, 본체와 부속물의 색과 거칠기를 검증하지 않는다. src/main.ts 599-656과
+      1336-1348의 shapingEfficiency, updateMoisture, updateClayMaterial 연결이 빠져도 단위
+      테스트는 통과한다.
+    impact: >-
+      수분과 물레 속도가 실제 성형 효율 및 구조 위험에 작용하고 시각적으로 마르는 핵심
+      재료 인과가 회귀해도 테스트가 탐지하지 못한다.
+    verification: >-
+      src/main.ts에서 shapingEfficiency 적용이나 updateClayMaterial 호출을 제거해도 현재
+      tests/process.test.ts는 여전히 pure 함수만 호출하므로 통과 가능한지 대조한다.
+    suggested_fix: >-
+      동일 입력을 저속·적정속도와 건조·적정·과습에서 실행해 실제 profile delta와 구조
+      위험 차이를 검증한다. 시간 경과 후 moisture 감소와 렌더 material 색·roughness 변경,
+      단계 밖 물 추가 불가를 확인하고 0, 0.12, 0.34, 0.72, 0.82, 0.92, 1 경계값을 추가한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 83-105
+    description: >-
+      흙 붙이기는 reserve와 높이·폭 텍스트만, 손잡이는 완료 class와 slider output 텍스트만,
+      유약은 coverage 숫자가 0보다 큰지만 확인한다. src/main.ts의 addVisibleClayLump,
+      createHandleMesh, rebuildHandleGeometry, renderSurfaceTexture가 no-op이어도 현재 assertion을
+      모두 만족할 수 있다. 첨부 스크린샷은 자동 assertion이 아니다.
+    impact: >-
+      별도 흙덩이, 손잡이 형상 조절, 표면에 직접 남는 유약이라는 3D 핵심 구현이 사라져도
+      E2E가 성공할 수 있다.
+    verification: >-
+      각 행동 뒤 테스트가 mesh 존재·위치, handle transform, texture 또는 국소 도포 결과를
+      읽지 않고 DOM 텍스트와 상태 속성만 확인하는지 검토한다.
+    suggested_fix: >-
+      scene의 최소 mesh count·handle transform·paint mask를 테스트 가능하게 노출하거나 순수
+      모델로 분리한다. 흙덩이 별도 mesh와 +180g, 두 개 소비와 0개 경계, 회전 중 disabled,
+      slider 전후 handle bounding box, restart 제거, 유약 stroke의 국소 texture와 선택 변경 시
+      reset을 검증한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 42-64
+    description: >-
+      소성 테스트는 청자 적정 온도와 900도 점수, 백유 20%와 95% 도포율, 색상 값의 단순
+      inequality만 검사하며 E2E는 청자 900도 한 경로뿐이다. UI가 항상 같은 material 색을
+      쓰거나 결과 swatch와 3D 표면이 온도를 무시해도 pure 함수 테스트는 통과한다. 0%와
+      100%, 900도와 1300도 clamp, 세 유약과 무유약, 유약 변경 시 도포율 reset, 낮은
+      도포율의 바탕 노출이 검증되지 않는다.
+    impact: >-
+      900~1300도 소성에서 유약 종류·도포율·온도에 따라 최종 색과 점수가 달라진다는 수용
+      조건이 실제 결과 화면까지 보장되지 않는다.
+    verification: >-
+      src/main.ts 440-503과 1023-1066의 material 및 결과 연결을 제거하거나 한 색으로 고정해도
+      tests/process.test.ts의 pure color 함수 assertion은 유지되는지 확인한다.
+    suggested_fix: >-
+      모든 glaze choice에 저온·적정·고온과 coverage 0·1을 적용하는 테이블 테스트로 점수
+      ordering과 색상 관계를 명시한다. E2E 또는 렌더 단위에서 실제 clayMaterial, texture,
+      결과 요약이 동일 상태를 반영하는지도 확인한다.
+
+  - severity: low
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 118-135
+    description: >-
+      3D 전체 보기에서 카메라 회전이나 줌을 실제 조작하지 않고 dock 가시성만 확인한다.
+      retry 뒤 바로 restart를 두 번 누르며 opening, moisture, lumps, handle, glaze, coverage,
+      kiln이 모두 초기화되는지 보지 않는다. next-button과 주문 순환도 실행하지 않는다.
+    impact: >-
+      수용 조건에 명시된 기존 카메라, 재시작, 주문 순환 회귀가 깨져도 현재 E2E가 탐지하지
+      못한다.
+    verification: >-
+      e2e/quality.spec.ts 후반부에서 result-view 상태와 dock visibility 외 카메라 변화
+      assertion이 없고, restart 뒤 RPM과 mode만 확인하며 next-button 사용이 없는지 확인한다.
+    suggested_fix: >-
+      result-view 드래그와 휠 전후 카메라 상태 또는 렌더 변화를 검증하고, retry와 restart의
+      전체 state 초기화 및 다음 주문 id·ghost 변경과 마지막 주문에서 첫 주문으로의 순환을
+      독립 검증한다.
+
+  - severity: low
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/quality.spec.ts
+      location: lines 48-78
+    description: >-
+      1440x900 HUD 검증은 요소의 toBeVisible, canvas 중앙 픽셀 alpha, 첨부 스크린샷뿐이다.
+      첨부 이미지는 비교 assertion이 아니므로 카드가 viewport 밖으로 잘리거나 서로 겹치고
+      텍스트가 읽히지 않아도 테스트가 통과할 수 있다.
+    impact: >-
+      제작 단계, 재료, RPM, 유약, 가마 상태가 1440x900에서 읽혀야 한다는 HUD 수용 조건에
+      자동 회귀 방어가 없다.
+    verification: >-
+      e2e/quality.spec.ts에서 주요 HUD 카드의 bounding box, 겹침, 글자 표시 또는 visual
+      snapshot 비교가 없고 screenshot이 testInfo attachment로만 저장되는지 확인한다.
+    suggested_fix: >-
+      주요 카드 bounding box가 viewport 안에 있고 서로 겹치지 않는지 검사하거나, 결정적인
+      상태에서 안정된 visual snapshot을 추가해 레이아웃과 가독성 회귀를 감지한다.

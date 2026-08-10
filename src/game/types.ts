@@ -4,6 +4,13 @@ export interface ClayProfile {
   height: number
   outerRadii: number[]
   innerRadii: number[]
+  opening: number
+}
+
+export interface CraftState {
+  moisture: number
+  clayMass: number
+  reserveLumps: number
 }
 
 export interface WheelState {

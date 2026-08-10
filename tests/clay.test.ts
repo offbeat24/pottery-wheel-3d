@@ -6,14 +6,20 @@ import {
   MIN_OUTER_RADIUS,
   MIN_WALL_THICKNESS,
   WIDEN_LIMIT_RADIUS,
+  RESERVE_CLAY_HEIGHT,
+  addClayBelow,
   collapseWideSection,
   changeHeight,
   createInitialClay,
   cutClayAt,
   deformRadius,
+  estimateClayVolume,
   interpolateClayProfile,
   isNarrowLimit,
   isWidenLimit,
+  minimumWallThickness,
+  openCenter,
+  sampleOuterRadius,
 } from '../src/game/clay'
 
 describe('점토 단면 변형', () => {
@@ -23,7 +29,9 @@ describe('점토 단면 변형', () => {
     const changed = deformRadius(clay, center, -0.2)
 
     expect(clay.outerRadii[center] - changed.outerRadii[center]).toBeGreaterThan(0.15)
-    expect(Math.abs(clay.outerRadii[0] - changed.outerRadii[0])).toBeLessThan(0.005)
+    expect(Math.abs(clay.outerRadii[0] - changed.outerRadii[0])).toBeLessThan(
+      clay.outerRadii[center] - changed.outerRadii[center],
+    )
   })
 
   it('극단적인 입력에도 반지름과 벽 두께 제한을 지킨다', () => {
@@ -44,9 +52,42 @@ describe('점토 단면 변형', () => {
   })
 
   it('끌어올릴 때 반지름을 줄여 부피 변화를 보정한다', () => {
-    const clay = createInitialClay()
+    const clay = openCenter(createInitialClay(), 1)
     const taller = changeHeight(clay, 0.35)
     expect(taller.outerRadii[20]).toBeLessThan(clay.outerRadii[20])
+    expect(minimumWallThickness(taller)).toBeLessThan(minimumWallThickness(clay))
+    expect(estimateClayVolume(taller)).toBeCloseTo(estimateClayVolume(clay), 2)
+  })
+
+  it('예비 흙은 현재 형태를 위로 유지한 채 아래 높이만 추가한다', () => {
+    const clay = deformRadius(createInitialClay(), 30, 0.16)
+    const extended = addClayBelow(clay)
+
+    expect(extended.height).toBeCloseTo(clay.height + RESERVE_CLAY_HEIGHT)
+    for (const position of [0, 0.25, 0.5, 0.75, 1]) {
+      const shiftedPosition = (RESERVE_CLAY_HEIGHT + clay.height * position) / extended.height
+      expect(sampleOuterRadius(extended, shiftedPosition)).toBeCloseTo(sampleOuterRadius(clay, position), 1)
+    }
+  })
+
+  it('처음에는 막힌 흙덩이이고 중심을 파면 내부 공간이 열린다', () => {
+    const mound = createInitialClay()
+    const opened = openCenter(mound, 1)
+    expect(mound.opening).toBe(0)
+    expect(mound.innerRadii.at(-1)).toBeCloseTo(0.025)
+    expect(opened.opening).toBe(1)
+    expect(opened.innerRadii.at(-1)).toBeGreaterThan(0.4)
+    expect(estimateClayVolume(opened)).toBeCloseTo(estimateClayVolume(mound), 2)
+  })
+
+  it('넓힐 때 총 부피를 보존하면서 선택 단면의 벽이 얇아진다', () => {
+    const opened = openCenter(createInitialClay(), 1)
+    const center = Math.floor(opened.outerRadii.length * 0.65)
+    const widened = deformRadius(opened, center, 0.08)
+    const beforeWall = opened.outerRadii[center] - opened.innerRadii[center]
+    const afterWall = widened.outerRadii[center] - widened.innerRadii[center]
+    expect(afterWall).toBeLessThan(beforeWall)
+    expect(estimateClayVolume(widened)).toBeCloseTo(estimateClayVolume(opened), 2)
   })
 
   it('충분히 가는 단면에서는 위쪽 점토를 분리한다', () => {

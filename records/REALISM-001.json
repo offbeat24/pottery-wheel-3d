@@ -1,0 +1,73 @@
+{
+  "task_id": "REALISM-001",
+  "summary_of_changes": "제작 루프를 직접 성형과 형태 확인으로 단순화하고, 불필요한 공정 상태·UI·계산·테스트와 미래 백로그를 제거했다. 예비 흙은 별도 메시 대신 현재 프로필 아래 높이를 추가한다.",
+  "why": "짧은 세션에서 점토를 직접 빚고 주문 형태를 맞추는 핵심 경험에 집중하기 위해서다.",
+  "files_changed": [
+    "DESIGN.md",
+    "FEATURE_BACKLOG.md",
+    "README.md",
+    "src/game/clay.ts",
+    "src/game/process.ts",
+    "src/game/scoring.ts",
+    "src/game/types.ts",
+    "src/main.ts",
+    "src/styles.css",
+    "tests/clay.test.ts",
+    "tests/process.test.ts",
+    "tests/scoring.test.ts",
+    "tests/water-001.test.ts",
+    "e2e/moisture-001.spec.ts",
+    "e2e/quality.spec.ts",
+    "playwright.config.ts",
+    "tasks/REALISM-001.md",
+    "critiques/REALISM-001/design-9.yaml",
+    "critiques/REALISM-001/test-9.yaml",
+    "critiques/REALISM-001/simplicity-8.yaml",
+    "records/REALISM-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "reasoning-high" },
+    { "role": "test-critic", "alias": "reasoning-high" },
+    { "role": "simplicity-critic", "alias": "reasoning-high" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "bass doctor", "level": 1, "status": "pass" },
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "unit (45 tests)", "level": 2, "status": "pass" },
+      { "name": "browser shape loop, moisture, water and recovery at 1440x900 (5 tests)", "level": 2, "status": "pass" },
+      { "name": "production build", "level": 2, "status": "pass" }
+    ],
+    "not_verified": []
+  },
+  "critic_findings": {
+    "total": 0,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/REALISM-001"
+  },
+  "known_limitations": [
+    "도예 물성은 짧은 브라우저 세션을 위한 근사 모델이다.",
+    "모바일 터치 조작은 현재 범위에 포함하지 않았다.",
+    "Vite build는 Three.js 메인 청크가 500kB를 넘는다는 성능 경고를 남긴다."
+  ],
+  "out_of_scope_findings": [],
+  "docs_updated": {
+    "needed": true,
+    "updated": ["DESIGN.md", "FEATURE_BACKLOG.md", "README.md"]
+  },
+  "lessons": {
+    "recorded": true,
+    "candidates": [
+      "WebGL E2E는 단일 worker에서 실행해야 포인터와 가상 시간 검증이 안정적이다."
+    ]
+  },
+  "rollback": {
+    "method": "REALISM-001에서 변경한 게임 상태, 점토 모델, UI, 문서와 테스트를 함께 되돌린다."
+  },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900, WebGL2",
+    "notes": "형태 확인 즉시 결과 진입, 아래 높이 추가, 결과 3D 보기와 키보드 focus 순서를 실제 렌더에서 확인했고 콘솔 오류는 0건이었다."
+  }
+}

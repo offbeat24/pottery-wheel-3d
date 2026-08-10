@@ -1,6 +1,11 @@
 import { sampleOuterRadius } from './clay'
 import type { ClayProfile, OrderDefinition, ScoreBreakdown } from './types'
 
+export function sellPrice(totalScore: number): number {
+  const normalizedScore = Math.max(0, Math.min(100, totalScore)) / 100
+  return Math.round((1000 + 29000 * normalizedScore ** 2.4) / 100) * 100
+}
+
 export function scoreClay(profile: ClayProfile, order: OrderDefinition): ScoreBreakdown {
   const sampleCount = 64
   let accumulatedError = 0

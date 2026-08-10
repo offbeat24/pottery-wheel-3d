@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSafeProfile, createInitialClay } from '../src/game/clay'
 import { ORDERS } from '../src/game/orders'
-import { scoreClay } from '../src/game/scoring'
+import { scoreClay, sellPrice } from '../src/game/scoring'
 
 describe('주문 채점', () => {
   it('목표 단면과 같은 점토는 99점 이상이다', () => {
@@ -20,5 +20,11 @@ describe('주문 채점', () => {
   it('동일한 입력을 항상 동일하게 채점한다', () => {
     const clay = createInitialClay()
     expect(scoreClay(clay, ORDERS[1])).toEqual(scoreClay(clay, ORDERS[1]))
+  })
+
+  it('점수 곡선으로 기본 판매가를 계산한다', () => {
+    expect([30, 60, 87, 100].map((score) => sellPrice(score))).toEqual([2600, 9500, 21800, 30000])
+    expect(sellPrice(0)).toBe(1000)
+    expect(sellPrice(100)).toBe(30000)
   })
 })
