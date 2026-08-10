@@ -29,9 +29,32 @@ export function updateMoisture(state: CraftState, deltaSeconds: number, touching
   return { ...state, moisture: Math.max(0, state.moisture - workingLoss * deltaSeconds) }
 }
 
-export function addWater(state: CraftState): CraftState {
-  if (state.stage !== 'forming') return state
-  return { ...state, moisture: Math.min(100, state.moisture + 30) }
+// 물은 물그릇에서만 나온다. 스펀지에 머금은 만큼만 점토로 옮겨가고, 다 쓰면 다시 적셔야 한다.
+export const SPONGE_CAPACITY = 100
+/** 문지르는 동안 1초에 옮겨가는 물의 양. 가득 찬 스펀지는 약 2.4초면 빈다. */
+export const SPONGE_TRANSFER_PER_SECOND = 42
+
+export function soakSponge(): number {
+  return SPONGE_CAPACITY
+}
+
+export interface RubResult {
+  state: CraftState
+  spongeWater: number
+}
+
+/**
+ * 젖은 스펀지로 점토를 문지른 결과. 마른 스펀지는 아무것도 옮기지 않고,
+ * 이미 물이 찬 점토에는 더 들어가지 않으므로 스펀지의 물도 줄지 않는다.
+ */
+export function rubWater(state: CraftState, spongeWater: number, deltaSeconds: number): RubResult {
+  const remaining = Math.min(SPONGE_CAPACITY, Math.max(0, spongeWater))
+  if (state.stage !== 'forming' || remaining <= 0 || deltaSeconds <= 0) {
+    return { state, spongeWater: remaining }
+  }
+  const transfer = Math.min(remaining, SPONGE_TRANSFER_PER_SECOND * deltaSeconds, 100 - state.moisture)
+  if (transfer <= 0) return { state, spongeWater: remaining }
+  return { state: { ...state, moisture: state.moisture + transfer }, spongeWater: remaining - transfer }
 }
 
 export function addReserveClay(state: CraftState): CraftState {

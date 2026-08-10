@@ -89,8 +89,13 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   })
 
   await expect.poll(async () => Number(await page.locator('#rpm-value').textContent()), { timeout: 8_000 }).toBe(0)
+  // 물은 스펀지로만 바른다. 보조 버튼은 물그릇에서 스펀지를 적시는 역할이다.
   await page.getByTestId('water-action').click()
-  await expect(game).toHaveAttribute('data-moisture', '100')
+  await expect(game).toHaveAttribute('data-sponge', '100')
+  await page.mouse.move(canvasBox!.x + canvasBox!.width / 2, canvasBox!.y + canvasBox!.height * 0.52)
+  await page.mouse.down()
+  await expect.poll(async () => Number(await game.getAttribute('data-moisture')), { timeout: 8_000 }).toBe(100)
+  await page.mouse.up()
   const heightBeforeClay = await page.locator('#height-value').textContent()
   const widthBeforeClay = await page.locator('#width-value').textContent()
   await page.getByTestId('clay-action').click()

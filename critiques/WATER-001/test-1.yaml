@@ -1,0 +1,52 @@
+critic: test
+task_id: WATER-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: high
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/water-001.spec.ts
+      location: 최초 작성본
+    description: >-
+      "성형·카메라 조작과 포인터 충돌이 없다"는 인수 조건 중, 스펀지를 든 동안 같은 좌드래그가
+      흙을 밀지 않는지는 어느 테스트도 확인하지 않았다. 내려놓은 뒤 성형이 되는지만 확인했다.
+    impact: >-
+      applyContinuousShaping의 holdingSponge() 가드가 사라져 물 바르기와 성형이 동시에
+      일어나도 테스트는 통과한다. 이 가드가 이 기능의 충돌 방지 핵심이다.
+    verification: >-
+      가드를 지우고 같은 E2E를 돌려 실패하는지 대조한다.
+    suggested_fix: >-
+      스펀지를 든 상태로 점토를 좌드래그한 뒤 최대 폭이 그대로인지 확인한다.
+    resolution: >-
+      적용 완료 — 수분이 이미 100%인 지점에서(물이 더 들어가지 않아 조건이 깨끗하다)
+      좌드래그 후 최대 폭 불변을 확인한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/water-001.spec.ts
+      location: 물그릇 좌표
+    description: >-
+      물그릇을 화면 비율 좌표로 클릭하기만 하면, 물그릇이 HUD에 가려지거나 화면 밖으로 나가도
+      raycast는 성공해 테스트가 통과한다. 보이지 않는 물건도 통과시킨다.
+    impact: 인수 조건 "1440×900에서 물그릇이 자연스럽게 보인다"가 회귀해도 탐지되지 않는다.
+    verification: 물그릇 위에서 커서가 pointer로 바뀌는지, 벗어나면 되돌아오는지 확인한다.
+    suggested_fix: 클릭 전에 hover 커서 상태를 함께 고정한다.
+    resolution: 적용 완료 — hover 시 pointer, 벗어나면 pointer 아님을 함께 확인한다.
+
+  - severity: low
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/water-001.spec.ts
+      location: 기본 timeout
+    description: >-
+      WebGL 렌더와 실제 드래그를 여러 번 거치는 시나리오가 기본 30초 timeout 안에 들어가지 않아
+      병렬 실행에서만 실패했다(단독 실행은 통과).
+    impact: 병렬 실행 환경에서 간헐 실패로 보여 신뢰를 잃는다.
+    verification: 2 worker로 전체 E2E를 돌려 확인한다.
+    suggested_fix: test.slow()를 쓰고 RPM 숫자 대신 모드 전환을 신호로 삼는다.
+    resolution: 적용 완료 — test.slow() + 모드 문자열 기준으로 바꿨다.
