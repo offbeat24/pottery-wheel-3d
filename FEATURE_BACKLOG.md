@@ -2,6 +2,14 @@
 
 각 항목은 하나씩 구현·검증·검토할 수 있도록 독립 BASS 작업으로 분리했다.
 
+## 병렬 작업 원칙
+
+- 팀원 한 명이 항목 하나를 맡아 최신 `codex/realism-001`에서 독립 branch/worktree로 작업한다.
+- 기능 branch는 자기 `tasks/<TASK-ID>.md`, 기능 코드와 전용 테스트만 갱신하고 다른 항목의 상태를 바꾸지 않는다.
+- 새 unit/E2E 시나리오는 작업별 파일로 분리하며, `src/main.ts`와 `src/styles.css` 연결부는 최소화한다.
+- 이 문서의 순서·완료 상태·다음 추천 작업은 feature branch에서 수정하지 않고 `codex/realism-001` 통합 담당자가 merge 직후 갱신한다.
+- 상세 branch, 공유 파일, rebase·통합 규칙은 `AGENTS.md`의 **Feature Backlog 병렬 작업 계약**을 따른다.
+
 ## 다음 추천 순서
 
 1. [SCORING-001 — 점수·판매가 정책](tasks/SCORING-001.md)
