@@ -32,9 +32,10 @@ import {
   firePiece,
   firedClayColor,
   firedGlazeColor,
+  moistureResponse,
   setKilnTemperature,
   shapingEfficiency,
-  speedRiskMultiplier,
+  structuralPressureGain,
   updateGlazeCoverage,
   updateDrying,
   updateMoisture,
@@ -66,7 +67,7 @@ app.innerHTML = `
       <div class="dimension-row"><span>최소 벽</span><strong id="wall-value">—</strong></div>
       <div class="dimension-row"><span>흙 총량</span><strong id="mass-value">1,200 g</strong></div>
       <div class="dimension-row"><span>작업 시간</span><strong id="work-time-value">0초</strong></div>
-      <div class="material-meter"><div><span>수분</span><strong id="moisture-value">82%</strong></div><div class="material-track"><i id="moisture-fill"></i></div></div>
+      <div class="material-meter"><div><span>수분</span><strong id="moisture-value">82%</strong></div><div class="material-track" id="moisture-track" role="progressbar" aria-label="점토 수분" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82" aria-valuetext="적정 · 표면이 안정적입니다"><i id="moisture-fill"></i></div><span class="visually-hidden" id="material-state" role="status" aria-live="polite">수분이 적정해 표면이 안정적입니다.</span></div>
     </aside>
     <aside class="craft-panel" aria-label="제작 과정" data-testid="craft-panel">
       <div class="craft-heading"><span>MAKING PROCESS</span><strong id="stage-name">01 · 중심 열기</strong></div>
@@ -188,7 +189,9 @@ const wallValue = getElement<HTMLElement>('#wall-value')
 const massValue = getElement<HTMLElement>('#mass-value')
 const workTimeValue = getElement<HTMLElement>('#work-time-value')
 const moistureValue = getElement<HTMLElement>('#moisture-value')
+const moistureTrack = getElement<HTMLElement>('#moisture-track')
 const moistureFill = getElement<HTMLElement>('#moisture-fill')
+const materialState = getElement<HTMLElement>('#material-state')
 const speedFill = getElement<HTMLElement>('#speed-fill')
 const speedEffect = getElement<HTMLElement>('#speed-effect')
 const modePanel = getElement<HTMLElement>('#mode-panel')
@@ -317,9 +320,11 @@ let toastTimer = 0
 let restartTimer = 0
 let restartConfirming = false
 let materialHintCooldown = 0
+let materialMotionTime = 0
 let handleMesh: THREE.Mesh | null = null
 let centerHover = false
 let lastMaterialMoisture = craft.moisture
+let lastMaterialState = moistureResponse(craft.moisture).state
 let dryingActive = false
 let dryingStartMoisture = craft.moisture
 let elapsedWorkSeconds = 0
@@ -507,10 +512,16 @@ function paintGlazeFromPointer(clientX: number, clientY: number): void {
 
 function updateClayMaterial(): void {
   const usesSurfaceTexture = craft.stage === 'glazing' || craft.stage === 'fired'
+  const material = moistureResponse(craft.moisture)
   if (usesSurfaceTexture) renderSurfaceTexture()
   clayMaterial.map = usesSurfaceTexture ? glazeTexture : null
   clayMaterial.color.setHex(usesSurfaceTexture ? 0xffffff : wetClayColor(craft.moisture))
-  clayMaterial.roughness = craft.stage === 'fired' ? (craft.glaze === 'unglazed' ? 0.72 : 0.28) : craft.moisture < 25 ? 0.9 : 0.48 + (82 - craft.moisture) * 0.003
+  clayMaterial.roughness = craft.stage === 'fired'
+    ? craft.glaze === 'unglazed' ? 0.72 : 0.28
+    : material.state === 'dry' ? 0.96
+    : material.state === 'wet' ? 0.34
+    : 0.48 + (82 - craft.moisture) * 0.003
+  clayMaterial.flatShading = craft.stage === 'forming' && material.state === 'dry'
   clayMaterial.metalness = craft.stage === 'fired' ? 0.04 : 0
   clayMaterial.needsUpdate = true
 
@@ -575,8 +586,12 @@ function currentAction(): ShapingAction {
 
 function updateHands(deltaSeconds: number): void {
   const action = currentAction()
+  const material = moistureResponse(craft.moisture)
   const shaping = wheelState.mode === 'shaping' && collapseAnimation === null
-  const selectedY = 0.79 + selectedNormalizedHeight * clay.height
+  const drySlip = !reduceMotion && material.state === 'dry' && action !== 'idle'
+    ? Math.sin(materialMotionTime * 19) * 0.028 * (1 - material.shapingFactor)
+    : 0
+  const selectedY = 0.79 + selectedNormalizedHeight * clay.height + drySlip
   const outer = sampleOuterRadius(clay, selectedNormalizedHeight)
   const inner = sampleInnerRadius(clay, selectedNormalizedHeight)
   const center = new THREE.Vector3(0, selectedY, 0)
@@ -610,24 +625,48 @@ function updateHands(deltaSeconds: number): void {
   workshop.rightHand.scale.lerp(new THREE.Vector3(activeScale, activeScale, activeScale), blend)
 
   workshop.contactRing.visible = shaping && pointerKnown
-  workshop.contactRing.position.y = selectedNormalizedHeight * clay.height + 0.008
+  workshop.contactRing.position.y = selectedNormalizedHeight * clay.height + 0.008 + drySlip
   const ringRadius = outer / 0.82
   workshop.contactRing.scale.set(ringRadius, ringRadius, ringRadius)
   const ringMaterial = workshop.contactRing.material as THREE.MeshBasicMaterial
-  ringMaterial.color.setHex(structuralPressure > 0.05 ? 0xff5f45 : action === 'widen' ? 0x9fe1af : action === 'narrow' ? 0xffbd79 : 0xffddb2)
+  ringMaterial.color.setHex(structuralPressure > 0.05
+    ? 0xff5f45
+    : material.state === 'dry'
+      ? 0xf0a36d
+      : material.state === 'wet'
+        ? 0x83d7cf
+        : action === 'widen' ? 0x9fe1af : action === 'narrow' ? 0xffbd79 : 0xffddb2)
   ringMaterial.opacity = action === 'idle' ? 0.48 : 0.88
 }
 
-function applyContinuousShaping(deltaSeconds: number): void {
+function updateMaterialMotion(deltaSeconds: number): void {
+  if (collapseAnimation) return
+  materialMotionTime += deltaSeconds
+  const material = moistureResponse(craft.moisture)
+  const wetMotion = !reduceMotion && craft.stage === 'forming' && material.state === 'wet'
+    ? (material.riskMultiplier - 1) * wheelState.speed
+    : 0
+  gameRoot.dataset.materialMotion = String(wetMotion > 0)
+  const blend = 1 - Math.exp(-deltaSeconds * 10)
+  clayMesh.rotation.x = THREE.MathUtils.lerp(clayMesh.rotation.x, Math.sin(materialMotionTime * 9) * 0.007 * wetMotion, blend)
+  clayMesh.rotation.z = THREE.MathUtils.lerp(clayMesh.rotation.z, Math.cos(materialMotionTime * 7) * 0.013 * wetMotion, blend)
+}
+
+function applyContinuousShaping(deltaSeconds: number, pressureDeltaSeconds: number): void {
   if (collapseAnimation) return
   if (craft.stage !== 'forming') return
   if (wheelState.mode !== 'shaping' || structuralCooldown > 0) {
-    structuralPressure = Math.max(0, structuralPressure - deltaSeconds * 2.5)
+    structuralPressure = Math.max(0, structuralPressure - pressureDeltaSeconds * 2.5)
     return
   }
   const action = currentAction()
+  const material = moistureResponse(craft.moisture)
   const efficiency = shapingEfficiency(wheelState.speed, craft.moisture)
   if (efficiency < 0.25) {
+    if (material.state === 'dry' && action !== 'idle') {
+      structuralPressure = Math.min(1, structuralPressure + structuralPressureGain(pressureDeltaSeconds, wheelState.speed, craft.moisture, false))
+      structuralWarningActive = true
+    }
     if (materialHintCooldown <= 0) {
       showToast(craft.moisture < 24 ? '흙이 말라 손을 밀어내요 · 물을 적셔주세요' : '물레 속도를 중속으로 맞춰주세요')
       materialHintCooldown = 2.2
@@ -646,34 +685,41 @@ function applyContinuousShaping(deltaSeconds: number): void {
   }
 
   if (action !== 'narrow' && action !== 'widen') {
-    structuralPressure = Math.max(0, structuralPressure - deltaSeconds * 2.5)
+    structuralPressure = Math.max(0, structuralPressure - pressureDeltaSeconds * 2.5)
     structuralWarningActive = false
     shapingAccumulator = 0
     return
   }
 
   const atLimit = action === 'narrow' ? isNarrowLimit(clay, selectedIndex) : isWidenLimit(clay, selectedIndex)
-  if (atLimit) {
-    structuralPressure = Math.min(1, structuralPressure + deltaSeconds / 0.58 * speedRiskMultiplier(wheelState.speed, craft.moisture))
+  const wetInstability = material.state === 'wet' && wheelState.speed > 0.52
+  if (atLimit || wetInstability) {
+    structuralPressure = Math.min(1, structuralPressure + structuralPressureGain(pressureDeltaSeconds, wheelState.speed, craft.moisture, atLimit))
     if (!structuralWarningActive) {
-      showToast(action === 'narrow' ? '주의 · 계속 누르면 위쪽 점토가 잘려요' : '주의 · 벽이 더 벌어지면 주저앉아요')
+      showToast(wetInstability && !atLimit
+        ? '물이 고인 표면이 흔들려요 · 손을 떼고 잠시 기다리세요'
+        : action === 'narrow' ? '주의 · 계속 누르면 위쪽 점토가 잘려요' : '주의 · 벽이 더 벌어지면 주저앉아요')
       structuralWarningActive = true
     }
     if (structuralPressure >= 1) {
-      if (action === 'narrow') triggerCut()
-      else triggerCollapse()
+      if (atLimit && action === 'narrow') triggerCut()
+      else triggerCollapse(wetInstability && !atLimit)
     }
-    return
+    if (atLimit) return
+  } else {
+    structuralPressure = Math.max(0, structuralPressure - pressureDeltaSeconds * 3)
+    structuralWarningActive = false
   }
 
-  structuralPressure = Math.max(0, structuralPressure - deltaSeconds * 3)
-  structuralWarningActive = false
   shapingAccumulator += deltaSeconds
   if (shapingAccumulator < 1 / 30) return
   const shapingDelta = shapingAccumulator
   shapingAccumulator = 0
   const direction = action === 'narrow' ? -1 : 1
   clay = deformRadius(clay, selectedIndex, direction * shapingDelta * 0.22 * efficiency)
+  if (material.state === 'wet') {
+    clay = changeHeight(clay, -shapingDelta * material.sagRate * (0.6 + wheelState.speed))
+  }
   replaceMeshGeometry(clayMesh, clay)
   updateHandleGeometry()
 }
@@ -719,7 +765,7 @@ function triggerCut(): void {
   showToast('점토가 너무 가늘어져 위쪽이 잘려 떨어졌어요')
 }
 
-function triggerCollapse(): void {
+function triggerCollapse(overWet = false): void {
   collapseAnimation = {
     from: clay,
     to: collapseWideSection(clay, selectedIndex),
@@ -734,7 +780,7 @@ function triggerCollapse(): void {
   ignoreButtonsUntilRelease = true
   pointerButtons = 0
   pullAnchorHeight = null
-  showToast('한계를 넘은 벽이 흔들리기 시작했어요')
+  showToast(overWet ? '과한 물과 원심력에 벽이 흔들리기 시작했어요' : '한계를 넘은 벽이 흔들리기 시작했어요')
 }
 
 function updateCollapseAnimation(deltaSeconds: number): void {
@@ -854,14 +900,18 @@ function profilePath(radii: number[], height: number): string {
 
 function updateHud(): void {
   const action = currentAction()
+  const material = moistureResponse(craft.moisture)
   const maxRadius = Math.max(...clay.outerRadii)
   const efficiency = shapingEfficiency(wheelState.speed, craft.moisture)
   gameRoot.dataset.craftStage = craft.stage
   gameRoot.dataset.opening = clay.opening.toFixed(2)
   gameRoot.dataset.moisture = String(Math.round(craft.moisture))
+  gameRoot.dataset.moistureState = material.state
   gameRoot.dataset.glazeCoverage = String(Math.round(craft.glazeCoverage * 100))
   gameRoot.dataset.dryingActive = String(dryingActive)
   gameRoot.dataset.clayColor = clayMaterial.color.getHexString()
+  gameRoot.dataset.clayRoughness = clayMaterial.roughness.toFixed(2)
+  gameRoot.dataset.clayFlatShading = String(clayMaterial.flatShading)
   gameRoot.dataset.elapsedWorkSeconds = String(elapsedWorkSeconds)
   gameRoot.dataset.touchedWorkSeconds = String(touchedWorkSeconds)
   ghostMesh.visible = craft.stage !== 'fired'
@@ -873,9 +923,28 @@ function updateHud(): void {
   massValue.textContent = `${craft.clayMass.toLocaleString('ko-KR')} g`
   workTimeValue.textContent = formatDuration(elapsedWorkSeconds)
   moistureValue.textContent = `${Math.round(craft.moisture)}%`
+  const materialCopy = material.state === 'dry'
+    ? '과건조 · 표면이 거칠고 손이 미끄러집니다'
+    : material.state === 'wet'
+      ? '과습 · 표면이 번들거리고 벽이 처집니다'
+      : '적정 · 표면이 안정적입니다'
+  moistureTrack.setAttribute('aria-valuenow', String(Math.round(craft.moisture)))
+  moistureTrack.setAttribute('aria-valuetext', materialCopy)
+  if (material.state !== lastMaterialState) {
+    materialState.textContent = material.state === 'dry'
+      ? '흙이 과하게 말랐습니다. 물을 적셔주세요.'
+      : material.state === 'wet'
+        ? '흙이 과하게 젖었습니다. 감속하고 손을 떼어 잠시 기다리세요.'
+        : '흙의 수분이 적정 구간으로 돌아왔습니다.'
+    lastMaterialState = material.state
+  }
   moistureFill.style.width = `${Math.round(craft.moisture)}%`
-  moistureFill.classList.toggle('is-dry', craft.moisture < 28)
-  speedEffect.textContent = wheelState.speed < 0.12
+  const speedBand = wheelState.speed < 0.12 ? '저속' : wheelState.speed <= 0.72 ? '안정 속도' : '고속'
+  speedEffect.textContent = material.state === 'dry'
+    ? `과건조 · ${speedBand} · 물을 적셔주세요`
+    : material.state === 'wet'
+      ? `과습 · ${speedBand} · 감속 후 기다리기`
+      : wheelState.speed < 0.12
     ? 'Space로 가속 · 중속이 가장 안정적'
     : wheelState.speed <= 0.72
       ? `성형 효율 ${Math.round(efficiency * 100)}% · 안정 구간`
@@ -926,6 +995,10 @@ function updateHud(): void {
     ? '물레가 돌면 손이 커서를 따라갑니다'
     : ignoreButtonsUntilRelease
       ? '손을 떼고 다시 잡아주세요'
+      : material.state === 'dry' && action !== 'idle'
+        ? '거친 표면에서 접촉점이 미끄러져요 · 물을 적셔주세요'
+        : material.state === 'wet' && action !== 'idle'
+          ? '표면 물막이 흔들리고 벽이 천천히 처져요'
       : action === 'narrow'
         ? `높이 ${heightPercent}% · 바깥손으로 좁히는 중`
         : action === 'widen'
@@ -1022,6 +1095,8 @@ function resetClay(): void {
   clay = createInitialClay()
   craft = createInitialCraftState()
   lastMaterialMoisture = craft.moisture
+  lastMaterialState = moistureResponse(craft.moisture).state
+  materialState.textContent = '수분이 적정해 표면이 안정적입니다.'
   dryingActive = false
   dryingStartMoisture = craft.moisture
   elapsedWorkSeconds = 0
@@ -1051,6 +1126,7 @@ function resetClay(): void {
   structuralCooldown = 0
   shapingAccumulator = 0
   materialHintCooldown = 0
+  materialMotionTime = 0
   selectedNormalizedHeight = 0.58
   selectedIndex = Math.round(selectedNormalizedHeight * (PROFILE_SAMPLES - 1))
   resetRestartConfirmation()
@@ -1170,7 +1246,9 @@ function wetClay(): void {
   if (craft.moisture > before) {
     lastMaterialMoisture = craft.moisture
     updateClayMaterial()
-    showToast(`물을 적셨어요 · 수분 ${Math.round(craft.moisture)}%`)
+    showToast(moistureResponse(craft.moisture).state === 'wet'
+      ? '흙이 과하게 젖었어요 · 손을 떼고 잠시 기다리세요'
+      : `물을 적셨어요 · 수분 ${Math.round(craft.moisture)}%`)
   }
 }
 
@@ -1421,7 +1499,7 @@ function animate(): void {
       elapsedWorkSeconds += elapsedSeconds
       if (craft.stage === 'forming' && wheelState.mode === 'shaping' && currentAction() !== 'idle') touchedWorkSeconds += elapsedSeconds
     }
-    craft = updateMoisture(craft, deltaSeconds, wheelState.mode === 'shaping' && currentAction() !== 'idle', wheelState.speed)
+    craft = updateMoisture(craft, Math.min(elapsedSeconds, 5), wheelState.mode === 'shaping' && currentAction() !== 'idle', wheelState.speed)
     const stageBeforeDrying = craft.stage
     craft = updateDrying(craft, wheelDeltaSeconds, dryingActive)
     if ((craft.stage === 'forming' || craft.stage === 'drying' || craft.stage === 'leather-hard') && Math.abs(craft.moisture - lastMaterialMoisture) >= 1) {
@@ -1442,8 +1520,9 @@ function animate(): void {
     1 - Math.exp(-deltaSeconds * 10),
   )
 
-  applyContinuousShaping(deltaSeconds)
-  updateCollapseAnimation(deltaSeconds)
+  applyContinuousShaping(deltaSeconds, wheelDeltaSeconds)
+  updateCollapseAnimation(wheelDeltaSeconds)
+  updateMaterialMotion(deltaSeconds)
   updateDetachedPieces(deltaSeconds)
   updateHands(deltaSeconds)
   updateCamera()

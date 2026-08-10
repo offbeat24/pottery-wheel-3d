@@ -90,7 +90,8 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
 
   await expect.poll(async () => Number(await page.locator('#rpm-value').textContent()), { timeout: 8_000 }).toBe(0)
   await page.getByTestId('water-action').click()
-  await expect(game).toHaveAttribute('data-moisture', '100')
+  await expect(game).toHaveAttribute('data-moisture-state', 'wet')
+  expect(Number(await game.getAttribute('data-moisture'))).toBeGreaterThan(88)
   const heightBeforeClay = await page.locator('#height-value').textContent()
   const widthBeforeClay = await page.locator('#width-value').textContent()
   await page.getByTestId('clay-action').click()
@@ -104,9 +105,12 @@ test('core pottery capability works at 1440×900', async ({ page }, testInfo) =>
   await page.locator('#handle-thickness').fill('75')
   await expect(page.locator('#handle-width-output')).toHaveText('125%')
 
+  const moistureBeforeFinish = Number(await game.getAttribute('data-moisture'))
   await page.getByTestId('finish-action').click()
   await expect(game).toHaveAttribute('data-craft-stage', 'drying')
-  await expect(game).toHaveAttribute('data-moisture', '100')
+  const moistureAfterFinish = Number(await game.getAttribute('data-moisture'))
+  expect(moistureAfterFinish).toBeLessThanOrEqual(moistureBeforeFinish)
+  expect(moistureAfterFinish).toBeGreaterThanOrEqual(moistureBeforeFinish - 1)
   await expect(page.locator('[data-glaze="celadon"]')).toBeDisabled()
   const wetColor = await game.getAttribute('data-clay-color')
   await page.getByTestId('drying-action').click()

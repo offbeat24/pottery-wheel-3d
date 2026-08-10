@@ -7,7 +7,41 @@ export const GLAZES: Record<GlazeId, { name: string; color: number; optimalTempe
 }
 
 export const LEATHER_HARD_MOISTURE = 18
+export const DRY_MOISTURE_LIMIT = 24
+export const WET_MOISTURE_LIMIT = 88
 const DRYING_RATE_PER_SECOND = 34
+
+export function moistureResponse(moisture: number): {
+  state: 'dry' | 'balanced' | 'wet'
+  shapingFactor: number
+  riskMultiplier: number
+  sagRate: number
+} {
+  if (moisture < DRY_MOISTURE_LIMIT) {
+    const wetness = Math.max(0, moisture) / DRY_MOISTURE_LIMIT
+    return {
+      state: 'dry',
+      shapingFactor: 0.08 + wetness * wetness * 0.54,
+      riskMultiplier: 1.55 + (1 - wetness) * 1.2,
+      sagRate: 0,
+    }
+  }
+  if (moisture > WET_MOISTURE_LIMIT) {
+    const excess = Math.min(1, (moisture - WET_MOISTURE_LIMIT) / (100 - WET_MOISTURE_LIMIT))
+    return {
+      state: 'wet',
+      shapingFactor: 1 - excess * 0.45,
+      riskMultiplier: 1.4 + excess * 1.8,
+      sagRate: 0.015 + excess * 0.075,
+    }
+  }
+  return {
+    state: 'balanced',
+    shapingFactor: moisture < 34 ? 0.62 + (moisture - DRY_MOISTURE_LIMIT) * 0.038 : 1,
+    riskMultiplier: 1,
+    sagRate: 0,
+  }
+}
 
 export function createInitialCraftState(): CraftState {
   return {
@@ -25,7 +59,7 @@ export function createInitialCraftState(): CraftState {
 
 export function updateMoisture(state: CraftState, deltaSeconds: number, touching: boolean, speed: number): CraftState {
   if (state.stage !== 'forming') return state
-  const workingLoss = touching ? 1.25 + speed * 1.65 : 0.18
+  const workingLoss = touching ? 1.25 + speed * 1.65 : state.moisture > WET_MOISTURE_LIMIT ? 2.5 : 0.18
   return { ...state, moisture: Math.max(0, state.moisture - workingLoss * deltaSeconds) }
 }
 
@@ -122,19 +156,23 @@ export function shapingEfficiency(speed: number, moisture: number): number {
       : speed <= 0.72
         ? 1
         : Math.max(0.38, 1 - (speed - 0.72) * 1.8)
-  const moistureFactor = moisture < 16
-    ? 0.08
-    : moisture < 34
-      ? 0.35 + (moisture - 16) / 30
-      : moisture > 92
-        ? 0.72
-        : 1
-  return Math.min(1, speedFactor * moistureFactor)
+  return Math.min(1, speedFactor * moistureResponse(moisture).shapingFactor)
 }
 
 export function speedRiskMultiplier(speed: number, moisture: number): number {
   const speedRisk = speed > 0.82 ? 1 + (speed - 0.82) * 7 : 1
-  const wetRisk = moisture > 92 ? 1.4 : 1
-  const dryRisk = moisture < 24 ? 1.55 : 1
-  return speedRisk * wetRisk * dryRisk
+  return speedRisk * moistureResponse(moisture).riskMultiplier
+}
+
+export function structuralPressureGain(
+  deltaSeconds: number,
+  speed: number,
+  moisture: number,
+  atShapeLimit: boolean,
+): number {
+  const state = moistureResponse(moisture).state
+  const materialInstability = (state === 'wet' && speed > 0.52) || (state === 'dry' && speed > 0.12)
+  if (!atShapeLimit && !materialInstability) return 0
+  const failureDelay = atShapeLimit ? 0.58 : state === 'dry' ? 5.4 : 3.8
+  return deltaSeconds / failureDelay * speedRiskMultiplier(speed, moisture)
 }
