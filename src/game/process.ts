@@ -3,6 +3,7 @@ import { MAX_HEIGHT } from './clay'
 
 export const DRY_MOISTURE_LIMIT = 24
 export const WET_MOISTURE_LIMIT = 88
+export const FULL_EFFICIENCY_MAX_SPEED = 0.85
 
 export function moistureResponse(moisture: number): {
   state: 'dry' | 'balanced' | 'wet'
@@ -102,9 +103,9 @@ export function shapingEfficiency(speed: number, moisture: number): number {
     ? 0
     : speed < 0.34
       ? 0.55 + (speed - 0.12) * 1.7
-      : speed <= 0.72
+      : speed <= FULL_EFFICIENCY_MAX_SPEED
         ? 1
-        : Math.max(0.38, 1 - (speed - 0.72) * 1.8)
+        : Math.max(0.38, 1 - (speed - FULL_EFFICIENCY_MAX_SPEED) * 1.8)
   return Math.min(1, speedFactor * moistureResponse(moisture).shapingFactor)
 }
 

@@ -1,0 +1,30 @@
+critic: design
+task_id: EFFICIENCY-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: design
+    evidence:
+      file: src/main.ts
+      location: lines 825-834 (speedBand and speedEffect)
+    description: >-
+      85% 상단은 FULL_EFFICIENCY_MAX_SPEED로 효율 계산과 HUD가 일치하지만, 적정 수분의
+      speedEffect 분기는 12% 이하만 별도 처리하고 그보다 높으면 85%까지 모두 `안정 구간`으로
+      표시한다. 예를 들어 속도 20%에서 shapingEfficiency는 약 69%이고 speedBand도 `저속`인데
+      화면에는 `성형 효율 69% · 안정 구간`이 나온다. 이는 DESIGN.md 입력과 재료 피드백의
+      최고 효율 구간 34~85% 및 저속에서는 흙이 잘 움직이지 않는다는 계약과 모순된다.
+    impact: >-
+      사용자는 효율 수치가 100%보다 낮은데도 같은 줄에서 안정 구간이라고 안내받아 어느
+      속도까지 가속해야 하는지 판단하기 어렵다. 이번 변경의 핵심인 효율 경계와 HUD 경계의
+      일치가 상단에서만 성립하고 하단에서는 깨진다.
+    verification: >-
+      적정 수분에서 Space를 짧게 눌러 회전 속도를 약 20%로 유지한다. shapingEfficiency
+      결과와 하단 pedal-hint를 비교해 효율은 약 69%인데 `안정 구간`으로 표시되는지 확인한다.
+      34%, 85%, 85% 초과에서도 각각 경계 카피를 함께 확인한다.
+    suggested_fix: >-
+      balanced 분기도 12% 미만, 12~34% 저속, 34~85% 안정, 85% 초과 고속으로 나눈다.
+      12~34%에는 `저속 · 더 가속하면 잘 빚어져요`처럼 현재 효율과 다음 행동을 표시하고
+      `안정 구간`은 shapingEfficiency가 최고인 34~85%에만 사용한다. 34/85 경계 카피를
+      unit 또는 E2E로 고정한다.

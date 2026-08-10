@@ -1,0 +1,72 @@
+critic: test
+task_id: EFFICIENCY-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 22-27
+    description: >-
+      정확한 상단 경계를 구현에서 import한 FULL_EFFICIENCY_MAX_SPEED로만 검사하고 상수 자체가
+      0.85인지 확인하지 않는다. 구현과 테스트의 상수를 0.9처럼 함께 바꿔도 green이다. 또한
+      85% 바로 위가 아니라 100%만 less-than으로 보므로 99%까지 효율 1을 유지하다 100%에서만
+      낮아지는 잘못된 구간도 통과할 수 있다.
+    impact: >-
+      사용자가 명시한 "85%에서 정확히 100%, 85% 초과부터 감소" 경계가 다른 속도로 이동해도
+      핵심 수용 조건을 만족한 것으로 판정된다.
+    verification: >-
+      literal 0.85와 그 바로 아래·정확한 값·바로 위 값에서 shapingEfficiency를 비교하고,
+      현재 테스트가 imported constant와 speed 1만 사용하는지 대조한다.
+    suggested_fix: >-
+      FULL_EFFICIENCY_MAX_SPEED가 0.85와 정확히 같은지 독립 assertion을 두고, 0.849999·0.85는
+      1, 0.850001 또는 0.86은 1보다 작은지 경계 table test로 고정한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 23-27
+    description: >-
+      85% 초과 감소는 speed 1에서 0.7보다 크고 1보다 작다는 넓은 범위만 확인한다. 기존
+      기울기 1.8을 유지하는지 검증하지 않아 완만한 0.99 또는 급격한 0.71 같은 곡선도
+      통과한다. 저속·건조·과습 상대 감쇠 테스트도 0.55~0.6에서만 실행되어 새 고속 구간에서
+      수분 factor를 무시하는 분기 역시 탐지하지 못한다.
+    impact: >-
+      85% 위의 손맛과 위험 도달 시간이 의도한 기존 곡선에서 크게 바뀌거나, 고속에서 마른
+      흙과 과습 흙의 상대 감쇠가 사라져도 수용 조건이 green으로 남는다.
+    verification: >-
+      0.86·0.9·1.0에서 기대값 1-(speed-0.85)*1.8을 비교하고, 각 속도에서 balanced 효율이
+      dry와 wet보다 큰지 확인한다. 현재 suite의 moisture 비교 속도가 모두 0.6 이하인지
+      대조한다.
+    suggested_fix: >-
+      0.85 초과 대표값의 정확한 선형 기대값을 table test로 추가하고 같은 속도별 dry,
+      balanced, wet ordering을 함께 검증한다. 0 이하·1 초과 입력을 지원한다면 clamp 정책도
+      명시적으로 고정한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: tests/process.test.ts
+      location: lines 22-27
+    description: >-
+      추가된 검증은 pure shapingEfficiency 반환값만 확인한다. src/main.ts의 외벽 변형,
+      중심 구멍, 끌어올리기 또는 HUD가 이 값을 실제로 사용하는지, 85%에서 중속과 같은
+      단위 시간 변화량과 100% 안내를 보이는지는 확인하지 않는다. helper는 올바르게 바꾸고
+      한 입력 경로에 기존 72% 감쇠를 남기거나 HUD만 72%부터 고속으로 표시해도 unit은
+      통과한다.
+    impact: >-
+      계산 함수는 맞지만 사용자가 조작하는 실제 점토가 85%에서 여전히 둔하거나 화면이
+      "고속·효율 감소"로 잘못 안내하는 통합 회귀를 탐지하지 못한다.
+    verification: >-
+      적정 수분에서 55%와 85%를 같은 시간·입력으로 외벽, 중심 구멍, 끌어올리기에 적용해
+      profile delta가 허용 오차 안에서 같은지 확인하고, 85% HUD가 효율 100%·안정 구간인지
+      대조한다.
+    suggested_fix: >-
+      실제 update 경로를 cadence가 고정된 작은 integration test로 검증하거나 테스트 가능한
+      wheel speed seam을 사용해 1440x900 E2E에서 55%·85%의 profile delta와 HUD를 비교한다.
+      85%를 조금 넘긴 속도에서는 실제 delta와 안내가 함께 감소하는지도 확인한다.

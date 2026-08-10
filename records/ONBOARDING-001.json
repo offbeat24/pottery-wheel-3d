@@ -1,0 +1,46 @@
+{
+  "task_id": "ONBOARDING-001",
+  "summary_of_changes": "시작 모달을 회전 중 성형, 수분·스펀지, 정지 중 마무리의 상태별 플레이 안내로 개편했다.",
+  "why": "기능이 언제 작동하는지 플레이 전에 한 화면에서 이해할 수 있게 하기 위해서다.",
+  "files_changed": [
+    "FEATURE_BACKLOG.md",
+    "src/main.ts",
+    "src/styles.css",
+    "e2e/quality.spec.ts",
+    "e2e/water-001.spec.ts",
+    "tasks/ONBOARDING-001.md",
+    "critiques/ONBOARDING-001/design-1.yaml",
+    "critiques/ONBOARDING-001/test-3.yaml",
+    "critiques/ONBOARDING-001/simplicity-1.yaml",
+    "records/ONBOARDING-001.json"
+  ],
+  "models_used": [
+    { "role": "worker", "alias": "auto" },
+    { "role": "design-critic", "alias": "reasoning-high" },
+    { "role": "test-critic", "alias": "reasoning-high" },
+    { "role": "simplicity-critic", "alias": "reasoning-high" }
+  ],
+  "verification": {
+    "evaluations_run": [
+      { "name": "typecheck", "level": 1, "status": "pass" },
+      { "name": "1440x900 intro modal bounds, scoped copy and core flow E2E", "level": 2, "status": "pass" },
+      { "name": "full 7-scenario browser regression and production build", "level": 2, "status": "pass" }
+    ],
+    "not_verified": []
+  },
+  "critic_findings": {
+    "total": 0,
+    "open_high_or_medium": 0,
+    "report_path": "critiques/ONBOARDING-001"
+  },
+  "known_limitations": ["모바일 터치 안내는 현재 제품 범위에 포함하지 않는다."],
+  "out_of_scope_findings": [],
+  "docs_updated": { "needed": true, "updated": ["FEATURE_BACKLOG.md"] },
+  "lessons": { "recorded": false, "candidates": [] },
+  "rollback": { "method": "시작 모달의 기존 제목, 3개 소개 카드와 스타일을 복원한다." },
+  "design": {
+    "rendered_verification": true,
+    "environment": "Playwright Chromium 1440x900",
+    "notes": "기존 dialog와 focus 경계를 재사용하며 세 카드와 시작 버튼 각각의 가시성, viewport 경계와 비겹침을 확인했다."
+  }
+}

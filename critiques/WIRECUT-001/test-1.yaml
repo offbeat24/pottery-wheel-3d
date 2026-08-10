@@ -1,0 +1,73 @@
+critic: test
+task_id: WIRECUT-001
+iteration: 1
+no_issues_found: false
+findings:
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/wirecut-001.spec.ts
+      location: lines 26-44
+    description: >-
+      성공 경로는 y가 같은 정확한 수평 드래그만 실행하고, 실패 경로는 짧은 수평 드래그와
+      빈 공간 시작만 확인한다. 세로 편차가 큰 대각선 또는 거의 수직인 제스처가 절단되지
+      않는지는 검증하지 않는다. 실제 finishWireDrag도 시작·끝 x 거리만 검사하므로 x가
+      100px 이상이면 y가 크게 달라져도 선택 높이에서 절단하며 현재 테스트는 계속 통과한다.
+    impact: >-
+      사용자가 실을 수평으로 통과시킨다는 핵심 제스처 대신 대각선으로 쓸어도 시작 높이의
+      윗부분이 잘려 직접 조작의 예측 가능성이 깨진다.
+    verification: >-
+      점토에서 시작해 x를 150px, y를 150px 이상 함께 이동하거나 y 위주로 이동한 뒤
+      height와 detached-count가 그대로인지 확인한다. 현재 구현에서는 x 거리 조건만으로
+      절단되는지 대조한다.
+    suggested_fix: >-
+      수평 허용 오차를 제품 규칙으로 정하고 |deltaY|가 허용 범위를 넘는 긴 대각선과 수직
+      드래그가 실패하는 E2E를 추가한다. 좌→우와 우→좌의 충분히 긴 수평 드래그는 모두
+      성공하는 대칭 경로도 함께 고정한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/wirecut-001.spec.ts
+      location: lines 33-45
+    description: >-
+      E2E는 절단 뒤 높이가 초기값보다 작고 detached-count가 1인지만 확인한다. 포인터로
+      선택한 높이에서 잘렸는지, 높이 HUD와 결과 scoreClay가 잘린 동일 profile을 쓰는지는
+      확인하지 않고 결과 제출도 하지 않는다. unit은 wireCutClayAt에 직접 넣은 index 24만
+      검사하므로 UI가 어느 y에서 시작해도 고정 index를 넘기거나 결과 점수가 절단 전
+      profile을 사용해도 두 테스트가 모두 통과할 수 있다.
+    impact: >-
+      화면상 절단은 일어나지만 사용자가 고른 높이와 다른 곳이 잘리거나, 결과의 높이·실루엣
+      점수가 보이는 남은 작품과 불일치하는 핵심 연결 회귀를 탐지하지 못한다.
+    verification: >-
+      서로 충분히 떨어진 두 y 높이에서 같은 수평 드래그를 실행했을 때 남은 높이가 서로
+      달라지는지 확인하고, 한 절단 경로를 결과까지 제출해 HUD 높이·실루엣과 shape score가
+      동일한 잘린 profile에서 계산되는지 대조한다.
+    suggested_fix: >-
+      드래그 시작 높이 또는 cut index를 테스트 가능한 값으로 노출해 예상 cutHeight와 HUD를
+      비교한다. 낮은 위치와 높은 위치 두 경로를 검증하고, 절단 뒤 형태 확인을 눌러
+      scoreClay의 silhouette·height·smoothness 및 total과 결과 DOM 값을 비교한다.
+
+  - severity: medium
+    confidence: confirmed
+    category: test
+    evidence:
+      file: e2e/wirecut-001.spec.ts
+      location: lines 9-18
+    description: >-
+      테스트는 시작 직후 이미 멈춘 물레에서 실 버튼이 enabled인지 확인할 뿐, 회전 중
+      disabled인지와 활성 실 모드가 Space 가속 시 즉시 취소되는지를 검증하지 않는다.
+      따라서 stopped 조건을 제거해 회전 중에도 도구 선택과 절단을 허용한 구현이 현재
+      success·failure assertion을 모두 만족할 수 있다.
+    impact: >-
+      회전 중 실 자르기가 성형 입력과 충돌하고 분리 조각이 움직이는 물레에서 발생해,
+      명시된 안전한 조작 경계와 입력 모드 분리가 회귀할 수 있다.
+    verification: >-
+      Space를 눌러 RPM과 shaping mode 진입을 기다린 뒤 wire-action disabled, KeyC 무효,
+      wire-mode false와 drag 후 높이 불변을 확인한다. 멈춘 뒤에만 버튼과 KeyC가 활성화되는지
+      이어서 확인한다.
+    suggested_fix: >-
+      회전 중 버튼·키보드 진입·드래그 실패 경로와, 활성 실 모드에서 Space를 누르면 preview와
+      mode가 취소되고 절단되지 않는 경로를 E2E에 추가한다.

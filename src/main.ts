@@ -17,6 +17,7 @@ import {
   openCenter,
   sampleInnerRadius,
   sampleOuterRadius,
+  wireCutClayAt,
 } from './game/clay'
 import { projectPointerToAxis, shapingActionFromButtons } from './game/input'
 import { computeHandTargets } from './game/handPlacement'
@@ -24,6 +25,7 @@ import { ORDERS } from './game/orders'
 import { scoreClay, sellPrice } from './game/scoring'
 import {
   addReserveClay,
+  FULL_EFFICIENCY_MAX_SPEED,
   rubWater,
   soakSponge,
   SPONGE_CAPACITY,
@@ -34,6 +36,7 @@ import {
   updateMoisture,
   wetClayColor,
 } from './game/process'
+import type { CutResult } from './game/clay'
 import type { ClayProfile, CraftState, OrderDefinition, ScoreBreakdown, ShapingAction, WheelState } from './game/types'
 import { CAMERA_ENTER_SPEED, updateWheel } from './game/wheel'
 import { createClayGeometry, replaceMeshGeometry } from './visuals/clayMesh'
@@ -45,6 +48,7 @@ if (!app) throw new Error('앱 컨테이너를 찾을 수 없습니다.')
 app.innerHTML = `
   <main class="game-shell" aria-label="3D 도자기 물레 게임" data-testid="game-root" data-game-state="intro">
     <div class="scene-host" id="scene-host" data-testid="game-surface"></div>
+    <div class="wire-line" id="wire-line" data-testid="wire-line" hidden></div>
     <div class="grain"></div>
     <header class="top-bar">
       <div class="brand"><span class="brand-kicker">A SMALL POTTERY STUDIO</span><h1>고요한 물레</h1></div>
@@ -73,6 +77,7 @@ app.innerHTML = `
       <div class="material-actions">
         <button id="water-button" data-testid="water-action"><span>💧</span><b>스펀지 적시기</b><small>W</small></button>
         <button id="clay-button" data-testid="clay-action"><span>●</span><b>흙 붙이기</b><small id="clay-reserve">2개</small></button>
+        <button id="wire-button" data-testid="wire-action"><span>⌁</span><b>실 자르기</b><small>C</small></button>
       </div>
     </aside>
     <div class="bottom-dock">
@@ -99,14 +104,14 @@ app.innerHTML = `
     <section class="modal-layer" id="intro-modal" role="dialog" aria-modal="true" aria-labelledby="intro-title">
       <div class="intro-card">
         <p class="eyebrow">오늘의 공방이 열렸습니다</p>
-        <h2 id="intro-title">흙이 원하는 모양을<br>천천히 찾아주세요.</h2>
-        <p class="intro-lead">한 덩이 흙을 빚고, 수분과 속도를 살피며 주문의 형태를 맞춰보세요.</p>
+        <h2 id="intro-title">시작하기 전에,<br>세 가지만 기억하세요.</h2>
+        <p class="intro-lead">물레 상태에 따라 가능한 조작이 달라집니다. 주문 윤곽에 맞춘 형태만 완성하면 됩니다.</p>
         <div class="intro-steps">
-          <div class="intro-step"><strong>1</strong><b>덩이에서 시작</b><span>바로 외형을 빚거나 중심을 우클릭해 원하는 만큼 구멍을 냅니다.</span></div>
-          <div class="intro-step"><strong>2</strong><b>수분과 성형</b><span>W로 물을 더하며 양손으로 얇고 높게 흙을 늘립니다.</span></div>
-          <div class="intro-step"><strong>3</strong><b>형태 확인</b><span>물레를 멈추고 성형을 마치면 주문 윤곽과 바로 비교합니다.</span></div>
+          <section class="intro-step"><strong>1</strong><b>회전 중 · 성형</b><span>좌클릭은 좁히기, 우클릭은 넓히기, 양쪽 버튼+세로 드래그는 높이 조절입니다. 중심 우클릭으로 구멍을 냅니다.</span><em>회전 34~85% · 효율 100%</em></section>
+          <section class="intro-step"><strong>2</strong><b>수분 · 스펀지</b><span><kbd>W</kbd>로 스펀지를 적시고 점토를 좌드래그해 물을 바릅니다. 우클릭하면 스펀지를 내려놓습니다.</span><em>마르면 성형이 둔해집니다</em></section>
+          <section class="intro-step"><strong>3</strong><b>정지 중 · 마무리</b><span>실을 수평으로 당겨 자르고, 흙 붙이기로 아래 높이를 더합니다. 형태 확인으로 바로 제출합니다.</span><em>시점 회전 · 이동 · 확대 가능</em></section>
         </div>
-        <div class="intro-footer"><small>마우스와 키보드가 필요합니다.</small><button class="primary-button" id="start-button" data-testid="start-action">첫 주문 시작</button></div>
+        <div class="intro-footer"><small><kbd>Space</kbd> 누르는 동안 가속 · 다시 시작은 두 번 클릭</small><button class="primary-button" id="start-button" data-testid="start-action">첫 주문 시작</button></div>
       </div>
     </section>
 
@@ -175,6 +180,8 @@ const stageName = getElement<HTMLElement>('#stage-name')
 const stageGuide = getElement<HTMLElement>('#stage-guide')
 const waterButton = getElement<HTMLButtonElement>('#water-button')
 const clayButton = getElement<HTMLButtonElement>('#clay-button')
+const wireButton = getElement<HTMLButtonElement>('#wire-button')
+const wireLine = getElement<HTMLElement>('#wire-line')
 const clayReserve = getElement<HTMLElement>('#clay-reserve')
 const resultViewButton = getElement<HTMLButtonElement>('#result-view-button')
 const resultSummaryButton = getElement<HTMLButtonElement>('#result-summary-button')
@@ -270,6 +277,15 @@ let spongeWater = 0
 let rubbingClay = false
 // 점토에서 시작한 좌드래그만 물 바르기로 본다. 빈 공간 드래그는 그대로 시점 조작이다.
 let spongeDragging = false
+let wireMode = false
+let wireDragging = false
+let wireStartX = 0
+let wireStartY = 0
+let wireCurrentX = 0
+let wireCurrentY = 0
+let wireCutIndex = selectedIndex
+
+const WIRE_DRAG_MIN = 100
 
 function setGameState(state: 'intro' | 'playing' | 'result' | 'result-view'): void {
   gameRoot.dataset.gameState = state
@@ -591,6 +607,10 @@ function triggerCut(): void {
     return
   }
 
+  applyCut(cut, '점토가 너무 가늘어져 위쪽이 잘려 떨어졌어요')
+}
+
+function applyCut(cut: CutResult, message: string): void {
   const pieceMesh = new THREE.Mesh(createClayGeometry(cut.detached), clayMaterial)
   pieceMesh.castShadow = true
   pieceMesh.receiveShadow = true
@@ -621,7 +641,7 @@ function triggerCut(): void {
   ignoreButtonsUntilRelease = true
   pointerButtons = 0
   pullAnchorHeight = null
-  showToast('점토가 너무 가늘어져 위쪽이 잘려 떨어졌어요')
+  showToast(message)
 }
 
 function triggerCollapse(overWet = false): void {
@@ -761,6 +781,8 @@ function updateHud(): void {
   const material = moistureResponse(craft.moisture)
   const maxRadius = Math.max(...clay.outerRadii)
   const efficiency = shapingEfficiency(wheelState.speed, craft.moisture)
+  const stopped = wheelState.speed <= CAMERA_ENTER_SPEED && wheelState.mode === 'camera'
+  if (wireMode && (!stopped || holdingSponge() || collapseAnimation !== null)) setWireMode(false)
   gameRoot.dataset.opening = clay.opening.toFixed(2)
   gameRoot.dataset.moisture = String(Math.round(craft.moisture))
   gameRoot.dataset.moistureState = material.state
@@ -769,7 +791,11 @@ function updateHud(): void {
   gameRoot.dataset.clayRoughness = clayMaterial.roughness.toFixed(2)
   gameRoot.dataset.clayFlatShading = String(clayMaterial.flatShading)
   gameRoot.dataset.maxRadius = maxRadius.toFixed(4)
+  gameRoot.dataset.selectedRadius = sampleOuterRadius(clay, selectedNormalizedHeight).toFixed(4)
   gameRoot.dataset.elapsedWorkSeconds = String(elapsedWorkSeconds)
+  gameRoot.dataset.wireMode = String(wireMode)
+  gameRoot.dataset.wireDragging = String(wireDragging)
+  gameRoot.dataset.detachedCount = String(detachedPieces.length)
   ghostMesh.visible = true
   rpmValue.textContent = String(Math.round(wheelState.speed * 120))
   speedFill.style.width = `${Math.round(wheelState.speed * 100)}%`
@@ -797,18 +823,22 @@ function updateHud(): void {
   moistureFill.style.width = `${Math.round(craft.moisture)}%`
   spongeValue.textContent = spongeWater <= 0 ? '마름' : `${Math.round(spongeWater)}%`
   spongeFill.style.width = `${Math.round(spongeWater)}%`
-  const speedBand = wheelState.speed < 0.34 ? '저속' : wheelState.speed <= 0.72 ? '안정 속도' : '고속'
+  const speedBand = wheelState.speed < 0.34 ? '저속' : wheelState.speed <= FULL_EFFICIENCY_MAX_SPEED ? '안정 속도' : '고속'
   speedEffect.textContent = material.state === 'dry'
     ? `과건조 · ${speedBand} · 물을 적셔주세요`
     : material.state === 'wet'
       ? `과습 · ${speedBand} · 감속 후 기다리기`
-      : wheelState.speed < 0.12
+    : wheelState.speed < 0.12
     ? 'Space로 가속 · 중속이 가장 안정적'
-    : wheelState.speed <= 0.72
+    : wheelState.speed < 0.34
+      ? `성형 효율 ${Math.round(efficiency * 100)}% · 저속 구간`
+    : wheelState.speed <= FULL_EFFICIENCY_MAX_SPEED
       ? `성형 효율 ${Math.round(efficiency * 100)}% · 안정 구간`
       : `성형 효율 ${Math.round(efficiency * 100)}% · 벽 흔들림 주의`
   const modeCopy = collapseAnimation
     ? '주저앉는 중'
+    : wireMode
+      ? wireDragging ? '실 자르는 중' : '실 자르기'
     : holdingSponge()
     ? rubbingClay ? '물 바르는 중' : '물 바를 준비'
     : wheelState.mode === 'camera'
@@ -822,12 +852,15 @@ function updateHud(): void {
           : '성형 중'
   modeName.textContent = modeCopy
   renderer.domElement.classList.toggle('shaping', wheelState.mode === 'shaping' && collapseAnimation === null)
+  renderer.domElement.classList.toggle('wire-cutting', wireMode)
   modePanel.classList.toggle('is-shaping', wheelState.mode === 'shaping' && collapseAnimation === null)
   modePanel.classList.toggle('is-warning', structuralPressure > 0.08)
   modePanel.classList.toggle('is-collapsing', collapseAnimation !== null)
-  const hintMode = holdingSponge() ? 'sponge' : wheelState.mode
+  const hintMode = wireMode ? 'wire' : holdingSponge() ? 'sponge' : wheelState.mode
   if (lastHintMode !== hintMode) {
-    controlHints.innerHTML = hintMode === 'sponge'
+    controlHints.innerHTML = hintMode === 'wire'
+      ? `<div class="hint"><span class="mousecap">좌</span>가로로 당기기</div><div class="hint"><span class="mousecap">ESC</span>취소</div><div class="hint"><span class="mousecap">C</span>실 내려놓기</div>`
+      : hintMode === 'sponge'
       ? `<div class="hint"><span class="mousecap">좌</span>물 바르기</div><div class="hint"><span class="mousecap">우</span>스펀지 내려놓기</div><div class="hint"><span class="mousecap">물그릇</span>다시 적시기</div>`
       : wheelState.mode === 'camera'
       ? `<div class="hint"><span class="mousecap">좌</span>회전</div><div class="hint"><span class="mousecap">우</span>이동</div><div class="hint"><span class="mousecap">휠</span>확대</div>`
@@ -838,6 +871,8 @@ function updateHud(): void {
   const heightPercent = Math.round(selectedNormalizedHeight * 100)
   contactState.textContent = collapseAnimation
     ? '손을 물리고 벽이 내려앉는 모습을 확인하세요'
+    : wireMode
+      ? wireDragging ? `높이 ${heightPercent}% · 실을 수평으로 당기는 중` : '자를 높이의 점토를 누르고 실을 가로로 당기세요'
     : holdingSponge()
       ? rubbingClay
         ? `높이 ${Math.round(selectedNormalizedHeight * 100)}% · 스펀지로 물을 바르는 중 · 스펀지 ${Math.round(spongeWater)}%`
@@ -864,14 +899,18 @@ function updateHud(): void {
   pressureValue.textContent = collapseAnimation ? '붕괴' : structuralPressure >= 0.72 ? '위험' : structuralPressure > 0.08 ? '주의' : '안정'
 
   stageName.textContent = '형태 맞추기'
-  stageGuide.textContent = '주문 윤곽에 맞춰 외벽과 높이를 다듬고, 물레를 멈춘 뒤 결과를 확인하세요.'
-  const stopped = wheelState.speed <= CAMERA_ENTER_SPEED && wheelState.mode === 'camera'
+  stageGuide.textContent = wireMode
+    ? '실을 댄 높이에서 윗부분을 잘라내 형태를 다듬습니다.'
+    : '주문 윤곽에 맞춰 외벽과 높이를 다듬고, 물레를 멈춘 뒤 결과를 확인하세요.'
   waterButton.disabled = spongeWater >= SPONGE_CAPACITY
   clayButton.disabled = craft.reserveLumps <= 0 || clay.height >= MAX_HEIGHT || !stopped
+  wireButton.disabled = !started || !stopped || holdingSponge() || collapseAnimation !== null
+  wireButton.classList.toggle('is-active', wireMode)
+  wireButton.setAttribute('aria-pressed', String(wireMode))
   clayReserve.textContent = `${craft.reserveLumps}개`
-  const commonReady = started && stopped && resultModal.hidden && collapseAnimation === null
+  const commonReady = started && stopped && resultModal.hidden && collapseAnimation === null && !wireMode
   finishButton.disabled = !commonReady
-  finishButton.textContent = commonReady ? '형태 확인하기' : '물레를 멈춰주세요'
+  finishButton.textContent = commonReady ? '형태 확인하기' : wireMode ? '실을 내려놓아주세요' : '물레를 멈춰주세요'
 }
 
 function showToast(message: string): void {
@@ -889,6 +928,7 @@ function formatDuration(seconds: number): string {
 }
 
 function resetClay(): void {
+  setWireMode(false)
   collapseAnimation = null
   clayMesh.rotation.set(0, 0, 0)
   clayMesh.position.set(0, 0, 0)
@@ -998,6 +1038,7 @@ function trapDialogFocus(event: KeyboardEvent): void {
 
 function finishWork(): void {
   if (finishButton.disabled) return
+  setWireMode(false)
   pointerButtons = 0
   wheelState.pedalDown = false
   wheelState = { speed: 0, pedalDown: false, mode: 'camera' }
@@ -1019,6 +1060,49 @@ function joinClayLump(): void {
   showToast(`바닥에 높이를 더했어요 · 총 ${craft.clayMass}g`)
 }
 
+function drawWire(): void {
+  const bounds = gameRoot.getBoundingClientRect()
+  wireLine.hidden = false
+  wireLine.style.left = `${Math.min(wireStartX, wireCurrentX) - bounds.left}px`
+  wireLine.style.top = `${wireStartY - bounds.top}px`
+  wireLine.style.width = `${Math.abs(wireCurrentX - wireStartX)}px`
+}
+
+function stopWireDrag(): void {
+  wireDragging = false
+  wireLine.hidden = true
+  wireLine.style.width = '0px'
+}
+
+function setWireMode(active: boolean): void {
+  stopWireDrag()
+  wireMode = active
+  pointerButtons = 0
+  pullAnchorHeight = null
+}
+
+function toggleWireMode(): void {
+  if (wireButton.disabled) return
+  setWireMode(!wireMode)
+  showToast(wireMode ? '점토를 누르고 실을 가로로 당겨 윗부분을 잘라보세요' : '실을 내려놓았어요')
+}
+
+function finishWireDrag(clientX: number, clientY: number): void {
+  if (!wireDragging) return
+  wireCurrentX = clientX
+  wireCurrentY = clientY
+  const distance = Math.abs(wireCurrentX - wireStartX)
+  const verticalDrift = Math.abs(wireCurrentY - wireStartY)
+  stopWireDrag()
+  if (distance < WIRE_DRAG_MIN || verticalDrift > 36) {
+    showToast(verticalDrift > 36 ? '실을 수평으로 당겨주세요' : '실을 더 길게 가로로 당겨주세요')
+    return
+  }
+
+  applyCut(wireCutClayAt(clay, wireCutIndex), '실이 지나간 높이에서 윗부분을 잘랐어요')
+  setWireMode(false)
+}
+
 renderer.domElement.addEventListener('contextmenu', (event) => event.preventDefault())
 renderer.domElement.addEventListener('pointerdown', (event) => {
   if (!started || !resultModal.hidden) return
@@ -1028,6 +1112,23 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   latestPointerX = event.clientX
   latestPointerY = event.clientY
   pointerKnown = true
+  if (wireMode && (event.buttons & 1) !== 0) {
+    if (!hitsClay(event.clientX, event.clientY)) {
+      showToast('점토 표면에서 실을 당기기 시작해주세요')
+      return
+    }
+    updateSelection(event.clientX, event.clientY)
+    wireDragging = true
+    wireStartX = event.clientX
+    wireStartY = event.clientY
+    wireCurrentX = event.clientX
+    wireCurrentY = event.clientY
+    wireCutIndex = selectedIndex
+    gameRoot.dataset.wireCutIndex = String(wireCutIndex)
+    drawWire()
+    renderer.domElement.setPointerCapture(event.pointerId)
+    return
+  }
   if ((event.buttons & 1) !== 0 && hitsWaterBowl(event.clientX, event.clientY)) {
     soakSpongeInBowl()
     return
@@ -1062,6 +1163,12 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   latestPointerX = event.clientX
   latestPointerY = event.clientY
   pointerKnown = true
+  if (wireDragging && (event.buttons & 1) !== 0) {
+    wireCurrentX = event.clientX
+    wireCurrentY = event.clientY
+    drawWire()
+    return
+  }
   if (spongeDragging && (event.buttons & 1) !== 0) {
     updateSelection(event.clientX, event.clientY)
     // 드래그 중 점토를 벗어나면 물이 묻지 않고, 다시 닿으면 이어진다.
@@ -1112,6 +1219,7 @@ renderer.domElement.addEventListener('pointermove', (event) => {
 })
 
 const releasePointer = (event: PointerEvent): void => {
+  finishWireDrag(event.clientX, event.clientY)
   if ((event.buttons & 1) === 0) {
     rubbingClay = false
     spongeDragging = false
@@ -1124,8 +1232,12 @@ const releasePointer = (event: PointerEvent): void => {
   }
 }
 renderer.domElement.addEventListener('pointerup', releasePointer)
-renderer.domElement.addEventListener('pointercancel', releasePointer)
+renderer.domElement.addEventListener('pointercancel', (event) => {
+  stopWireDrag()
+  releasePointer(event)
+})
 window.addEventListener('pointerup', (event) => {
+  finishWireDrag(event.clientX, event.clientY)
   if (event.buttons === 0) {
     pointerButtons = 0
     pullAnchorHeight = null
@@ -1142,11 +1254,16 @@ window.addEventListener('keydown', (event) => {
   trapDialogFocus(event)
   if (event.code === 'Space') {
     event.preventDefault()
-    if (started && resultModal.hidden) wheelState.pedalDown = true
+    if (started && resultModal.hidden) {
+      setWireMode(false)
+      wheelState.pedalDown = true
+    }
     return
   }
   if (!started || !resultModal.hidden || event.repeat) return
   if (event.code === 'KeyW') wetClay()
+  if (event.code === 'KeyC') toggleWireMode()
+  if (event.code === 'Escape') setWireMode(false)
 })
 window.addEventListener('keyup', (event) => {
   if (event.code === 'Space') {
@@ -1158,6 +1275,7 @@ window.addEventListener('blur', () => {
   wheelState.pedalDown = false
   rubbingClay = false
   spongeDragging = false
+  setWireMode(false)
   pointerButtons = 0
   pullAnchorHeight = null
   ignoreButtonsUntilRelease = false
@@ -1173,6 +1291,7 @@ startButton.addEventListener('click', () => {
 finishButton.addEventListener('click', finishWork)
 waterButton.addEventListener('click', wetClay)
 clayButton.addEventListener('click', joinClayLump)
+wireButton.addEventListener('click', toggleWireMode)
 resultViewButton.addEventListener('click', () => {
   resultModal.hidden = true
   resultViewDock.hidden = false

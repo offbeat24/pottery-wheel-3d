@@ -100,8 +100,10 @@ test('물그릇과 스펀지로 물을 직접 바른다', async ({ page }, testI
   // 재시작하면 수분과 스펀지가 초기값으로 돌아온다.
   await page.mouse.click(bowl.x, bowl.y)
   await expect(game).toHaveAttribute('data-sponge', '100')
-  await page.getByTestId('restart-action').click()
-  await page.getByTestId('restart-action').click()
+  const restart = page.getByTestId('restart-action')
+  await restart.click({ force: true })
+  await expect(restart).toContainText('한 번 더 누르면 재시작')
+  await restart.click({ force: true })
   await expect(game).toHaveAttribute('data-sponge', '0')
   await expect.poll(moisture).toBe(startMoisture)
 
